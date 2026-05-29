@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TAPGOD — BJJ Game Plan Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060809;
+    --surface: #0c1014;
+    --card: #101519;
+    --card2: #141b21;
+    --border: #1a2530;
+    --border2: #243444;
+    --white: #eef3f7;
+    --muted: #3d5566;
+    --dim: #1e2e3a;
+    --gold: #d4a843;
+    --gold2: #f0c96a;
+    --gold-dim: rgba(212,168,67,0.1);
+    --red: #c43a2a;
+    --green: #2a9c5a;
+  }
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--white); font-family: 'Barlow Condensed', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"); pointer-events: none; z-index: 9999; }
+  #landing { min-height: 100vh; display: flex; flex-direction: column; }
+  .nav { display: flex; justify-content: space-between; align-items: center; padding: 24px 40px; border-bottom: 1px solid var(--border); }
+  .nav-logo .tap { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: var(--white); }
+  .nav-logo .god { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: var(--gold); }
+  .nav-tag { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; }
+  .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; text-align: center; position: relative; }
+  .hero::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; height: 400px; background: radial-gradient(ellipse, rgba(212,168,67,0.06) 0%, transparent 70%); pointer-events: none; }
+  .hero-eyebrow { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  .hero-eyebrow::before, .hero-eyebrow::after { content: ''; width: 40px; height: 1px; background: var(--gold); opacity: 0.4; }
+  .hero-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(80px, 18vw, 160px); line-height: 0.85; letter-spacing: 4px; margin-bottom: 8px; }
+  .hero-title .tap { color: var(--white); }
+  .hero-title .god { color: var(--gold); text-shadow: 0 0 60px rgba(212,168,67,0.3); }
+  .hero-sub { font-size: 20px; font-weight: 300; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 48px; }
+  .hero-desc { font-size: 18px; font-weight: 400; color: #6a8a9a; max-width: 480px; line-height: 1.6; margin-bottom: 48px; }
+  .hero-desc strong { color: var(--white); }
+  .cta-btn { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px; padding: 18px 56px; background: var(--gold); color: var(--bg); border: none; cursor: pointer; transition: all 0.2s; }
+  .cta-btn:hover { background: var(--gold2); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,168,67,0.3); }
+  .hero-footer { margin-top: 32px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 2px; }
+  .hero-stats { display: flex; gap: 48px; margin-top: 64px; padding-top: 48px; border-top: 1px solid var(--border); }
+  .stat { text-align: center; }
+  .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 40px; color: var(--gold); line-height: 1; display: block; }
+  .stat-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+  .mike-strip { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; gap: 16px; }
+  .mike-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--gold-dim); border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--gold); flex-shrink: 0; }
+  .mike-text { font-size: 15px; color: #6a8a9a; line-height: 1.5; }
+  .mike-text strong { color: var(--white); }
+  #app { display: none; max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+  .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .app-logo { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 2px; }
+  .app-logo .tap { color: var(--white); }
+  .app-logo .god { color: var(--gold); }
+  .app-step-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 2px; }
+  .progress { display: flex; gap: 6px; margin-bottom: 40px; }
+  .prog-seg { flex: 1; height: 2px; background: var(--dim); transition: background 0.4s; }
+  .prog-seg.active { background: var(--gold); }
+  .prog-seg.done { background: var(--green); }
+  .step { display: none; }
+  .step.active { display: block; animation: stepIn 0.35s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes stepIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
+  .step-heading { margin-bottom: 28px; }
+  .step-num-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--gold); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
+  .step-title { font-family: 'Bebas Neue', sans-serif; font-size: 40px; letter-spacing: 2px; color: var(--white); line-height: 1; margin-bottom: 8px; }
+  .step-desc { font-size: 16px; color: var(--muted); font-weight: 400; line-height: 1.5; }
+  .opt-grid { display: grid; gap: 8px; margin-bottom: 32px; }
+  .opt-grid.g2 { grid-template-columns: 1fr 1fr; }
+  .opt-grid.g3 { grid-template-columns: repeat(3,1fr); }
+  @media(max-width:580px) { .opt-grid.g2, .opt-grid.g3 { grid-template-columns: 1fr; } }
+  .opt { background: var(--card); border: 1px solid var(--border); padding: 18px 20px; cursor: pointer; transition: all 0.15s; text-align: left; color: var(--white); position: relative; overflow: hidden; }
+  .opt::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--gold); transform: scaleX(0); transform-origin: left; transition: transform 0.2s; }
+  .opt:hover { background: var(--card2); border-color: var(--border2); }
+  .opt:hover::after { transform: scaleX(0.4); }
+  .opt.sel { border-color: var(--gold); background: var(--gold-dim); }
+  .opt.sel::after { transform: scaleX(1); }
+  .opt-name { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+  .opt-hint { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .opt.sel .opt-hint { color: #7a9aaa; }
+  .slider-box { background: var(--card); border: 1px solid var(--border); padding: 24px 28px; margin-bottom: 32px; }
+  .slider-top { display: flex; justify-content: space-between; margin-bottom: 16px; }
+  .slider-top .slabel { font-size: 16px; font-weight: 500; color: var(--white); letter-spacing: 1px; text-transform: uppercase; }
+  .slider-top .sval { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--gold); line-height: 1; }
+  input[type=range] { width: 100%; height: 3px; background: var(--dim); appearance: none; outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; background: var(--gold); border: 3px solid var(--bg); cursor: pointer; }
+  .tick-row { display: flex; justify-content: space-between; margin-top: 8px; }
+  .tick-row span { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); }
+  .multi-hint { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--gold); letter-spacing: 3px; margin-bottom: 12px; text-transform: uppercase; }
+  .nav-row { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; }
+  .btn { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; padding: 12px 36px; border: 1px solid; cursor: pointer; transition: all 0.15s; background: transparent; }
+  .btn-go { border-color: var(--gold); color: var(--gold); }
+  .btn-go:hover { background: var(--gold); color: var(--bg); }
+  .btn-back { border-color: var(--border); color: var(--muted); }
+  .btn-back:hover { border-color: var(--border2); color: var(--white); }
+  .btn-generate { width: 100%; padding: 18px; font-size: 24px; background: var(--gold); color: var(--bg); border-color: var(--gold); margin-top: 8px; letter-spacing: 4px; }
+  .btn-generate:hover { background: var(--gold2); transform: translateY(-1px); box-shadow: 0 6px 24px rgba(212,168,67,0.25); }
+  #output { display: none; }
+  .loading-wrap { text-align: center; padding: 80px 24px; }
+  .loading-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 4px; color: var(--gold); margin-bottom: 24px; }
+  .loading-bar { width: 280px; height: 2px; background: var(--dim); margin: 0 auto 20px; position: relative; overflow: hidden; }
+  .loading-bar::after { content: ''; position: absolute; top: 0; left: -50%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: sweep 1.2s ease-in-out infinite; }
+  @keyframes sweep { to { left: 100%; } }
+  .loading-msg { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); letter-spacing: 3px; animation: fadePulse 1.2s infinite; }
+  @keyframes fadePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .result-header { background: var(--surface); border: 1px solid var(--gold); padding: 32px 40px; margin-bottom: 24px; text-align: center; position: relative; }
+  .result-header::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(212,168,67,0.05) 0%, transparent 70%); pointer-events: none; }
+  .result-tag { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--gold); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 12px; }
+  .result-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 3px; color: var(--white); line-height: 1; margin-bottom: 12px; }
+  .result-badge { display: inline-block; padding: 6px 20px; background: var(--gold-dim); border: 1px solid var(--gold); font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 3px; text-transform: uppercase; }
+  .ai-wrap { display: flex; flex-direction: column; gap: 16px; }
+  .ai-section { background: var(--card); border: 1px solid var(--border); padding: 24px 28px; animation: fadeUp 0.4s ease both; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  .ai-section-title { font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 3px; color: var(--gold); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .ai-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .ai-body { font-size: 16px; color: #8aadbd; line-height: 1.7; font-weight: 400; }
+  .ai-body strong { color: var(--white); font-weight: 600; }
+  .ai-body ul { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .ai-body ul li { display: flex; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 15px; }
+  .ai-body ul li:last-child { border-bottom: none; }
+  .ai-body ul li::before { content: '→'; color: var(--gold); font-family: 'Share Tech Mono', monospace; flex-shrink: 0; margin-top: 2px; }
+  .restart { display: block; text-align: center; margin-top: 40px; padding: 16px; border: 1px solid var(--border); font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 3px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .restart:hover { border-color: var(--gold); color: var(--gold); }
+  .error-box { background: rgba(196,58,42,0.1); border: 1px solid var(--red); padding: 16px 20px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #e07060; margin-bottom: 16px; }
+  .footer-strip { text-align: center; padding: 24px; border-top: 1px solid var(--border); margin-top: 48px; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; }
+  .footer-strip span { color: var(--gold); }
+</style>
+</head>
+<body>
+<div id="landing">
+  <nav class="nav">
+    <div class="nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
+    <span class="nav-tag">BJJ Game Plan Builder</span>
+  </nav>
+  <section class="hero">
+    <div class="hero-eyebrow">Built by a grappler. For grapplers.</div>
+    <h1 class="hero-title"><span class="tap">TAP</span><br><span class="god">GOD</span></h1>
+    <p class="hero-sub">BJJ Game Plan Builder</p>
+    <p class="hero-desc">Stop winging every roll. <strong>Build a real game plan</strong> personalised to your belt, your body, your weaknesses — in under 3 minutes.</p>
+    <button class="cta-btn" onclick="startApp()">BUILD MY GAME PLAN →</button>
+    <p class="hero-footer">FREE — No signup required — Powered by AI</p>
+    <div class="hero-stats">
+      <div class="stat"><span class="stat-num">5</span><span class="stat-label">Questions</span></div>
+      <div class="stat"><span class="stat-num">3</span><span class="stat-label">Minutes</span></div>
+      <div class="stat"><span class="stat-num">1</span><span class="stat-label">Game plan</span></div>
+    </div>
+  </section>
+  <div class="mike-strip">
+    <div class="mike-avatar">M</div>
+    <p class="mike-text"><strong>Built by Mike</strong> — 4-year blue belt from Bristol. I kept forgetting everything I learned in class. So I built this. Now I don't.</p>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-header">
+    <div class="app-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
+    <span class="app-step-label" id="stepLabel">STEP 1 OF 5</span>
+  </div>
+  <div class="progress" id="progressBar">
+    <div class="prog-seg active" id="ps0"></div>
+    <div class="prog-seg" id="ps1"></div>
+    <div class="prog-seg" id="ps2"></div>
+    <div class="prog-seg" id="ps3"></div>
+    <div class="prog-seg" id="ps4"></div>
+  </div>
+
+  <div class="step active" id="s0">
+    <div class="step-heading">
+      <div class="step-num-label">Step 01 — Foundation</div>
+      <h2 class="step-title">Your Belt Level</h2>
+      <p class="step-desc">Your game plan is calibrated to your experience. Be honest.</p>
+    </div>
+    <div class="opt-grid g3">
+      <button class="opt" onclick="pick(this,'belt','White Belt')"><span class="opt-name">⬜ WHITE</span><span class="opt-hint">0–2 yrs. Building foundations.</span></button>
+      <button class="opt" onclick="pick(this,'belt','Blue Belt')"><span class="opt-name">🟦 BLUE</span><span class="opt-hint">Basics solid. Finding a game.</span></button>
+      <button class="opt" onclick="pick(this,'belt','Purple Belt')"><span class="opt-name">🟣 PURPLE</span><span class="opt-hint">Technical. Building specialisms.</span></button>
+      <button class="opt" onclick="pick(this,'belt','Brown Belt')"><span class="opt-name">🟫 BROWN</span><span class="opt-hint">Refining. Plugging the gaps.</span></button>
+      <button class="opt" onclick="pick(this,'belt','Black Belt')"><span class="opt-name">⬛ BLACK</span><span class="opt-hint">The art of mastery.</span></button>
+      <button class="opt" onclick="pick(this,'belt','No-Gi Only')"><span class="opt-name">🤼 NO-GI</span><span class="opt-hint">Submission grappling focus.</span></button>
+    </div>
+    <div class="nav-row"><span></span><button class="btn btn-go" onclick="next(0)">NEXT →</button></div>
+  </div>
+
+  <div class="step" id="s1">
+    <div class="step-heading">
+      <div class="step-num-label">Step 02 — Identity</div>
+      <h2 class="step-title">Your Natural Style</h2>
+      <p class="step-desc">Your game plan should fit you — not a YouTube highlight reel.</p>
+    </div>
+    <div class="opt-grid g2">
+      <button class="opt" onclick="pick(this,'style','Pressure / top game wrestler')"><span class="opt-name">💪 PRESSURE PLAYER</span><span class="opt-hint">Strong, heavy. Grind top position.</span></button>
+      <button class="opt" onclick="pick(this,'style','Guard player / bottom game specialist')"><span class="opt-name">🕷️ GUARD PLAYER</span><span class="opt-hint">Technical, flexible. Comfortable off your back.</span></button>
+      <button class="opt" onclick="pick(this,'style','Leg lock hunter')"><span class="opt-name">🦵 LEG LOCKER</span><span class="opt-hint">The dark arts. Lower body is your weapon.</span></button>
+      <button class="opt" onclick="pick(this,'style','Dynamic submission hunter')"><span class="opt-name">⚡ SUB HUNTER</span><span class="opt-hint">Aggressive, mobile. Chasing the tap everywhere.</span></button>
+      <button class="opt" onclick="pick(this,'style','Positional control / chess player')"><span class="opt-name">♟️ CHESS PLAYER</span><span class="opt-hint">Methodical. Control, score, minimise risk.</span></button>
+      <button class="opt" onclick="pick(this,'style','Still finding my game')"><span class="opt-name">🔍 FINDING IT</span><span class="opt-hint">Let the plan help me discover my style.</span></button>
+    </div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(1)">← BACK</button><button class="btn btn-go" onclick="next(1)">NEXT →</button></div>
+  </div>
+
+  <div class="step" id="s2">
+    <div class="step-heading">
+      <div class="step-num-label">Step 03 — Strength</div>
+      <h2 class="step-title">Favourite Position</h2>
+      <p class="step-desc">Where do you feel most dangerous?</p>
+    </div>
+    <div class="opt-grid g3">
+      <button class="opt" onclick="pick(this,'position','Closed Guard')"><span class="opt-name">CLOSED GUARD</span><span class="opt-hint">Chokes, armbars, sweeps.</span></button>
+      <button class="opt" onclick="pick(this,'position','Half Guard')"><span class="opt-name">HALF GUARD</span><span class="opt-hint">Deep half, lockdown, old school.</span></button>
+      <button class="opt" onclick="pick(this,'position','De La Riva / Open Guard')"><span class="opt-name">DE LA RIVA</span><span class="opt-hint">Modern guard. Berimbolo entries.</span></button>
+      <button class="opt" onclick="pick(this,'position','Mount')"><span class="opt-name">MOUNT</span><span class="opt-hint">High mount, S-mount finishes.</span></button>
+      <button class="opt" onclick="pick(this,'position','Back Control')"><span class="opt-name">BACK CONTROL</span><span class="opt-hint">Best position in BJJ. RNC finisher.</span></button>
+      <button class="opt" onclick="pick(this,'position','Leg Entanglements')"><span class="opt-name">LEG ENTANGLEMENTS</span><span class="opt-hint">Heel hooks, kneebars, reaping.</span></button>
+      <button class="opt" onclick="pick(this,'position','Side Control')"><span class="opt-name">SIDE CONTROL</span><span class="opt-hint">Kesa gatame. Kimura hunts.</span></button>
+      <button class="opt" onclick="pick(this,'position','X Guard / Single Leg X')"><span class="opt-name">X GUARD</span><span class="opt-hint">Athletic, dynamic, lots of sweeps.</span></button>
+      <button class="opt" onclick="pick(this,'position','No clear favourite — well rounded')"><span class="opt-name">WELL ROUNDED</span><span class="opt-hint">Comfortable everywhere.</span></button>
+    </div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(2)">← BACK</button><button class="btn btn-go" onclick="next(2)">NEXT →</button></div>
+  </div>
+
+  <div class="step" id="s3">
+    <div class="step-heading">
+      <div class="step-num-label">Step 04 — Honest Assessment</div>
+      <h2 class="step-title">Biggest Weakness</h2>
+      <p class="step-desc">A real game plan attacks your gaps. Be brutally honest.</p>
+    </div>
+    <div class="multi-hint">SELECT UP TO 2</div>
+    <div class="opt-grid g2">
+      <button class="opt" onclick="multi(this,'weakness','Escaping bad positions')"><span class="opt-name">ESCAPES</span><span class="opt-hint">Getting stuck under side control, mount, back.</span></button>
+      <button class="opt" onclick="multi(this,'weakness','Guard passing')"><span class="opt-name">GUARD PASSING</span><span class="opt-hint">Can't get past the legs consistently.</span></button>
+      <button class="opt" onclick="multi(this,'weakness','Takedowns and wrestling')"><span class="opt-name">TAKEDOWNS</span><span class="opt-hint">Pulling guard out of necessity every roll.</span></button>
+      <button class="opt" onclick="multi(this,'weakness','Finishing submissions')"><span class="opt-name">FINISHING</span><span class="opt-hint">Dominant positions but can't close it out.</span></button>
+      <button class="opt" onclick="multi(this,'weakness','Defending submissions')"><span class="opt-name">DEFENCE</span><span class="opt-hint">Getting caught by the same attacks repeatedly.</span></button>
+      <button class="opt" onclick="multi(this,'weakness','Cardio and pacing')"><span class="opt-name">CARDIO / PACING</span><span class="opt-hint">Gassing out mid-roll and losing position.</span></button>
+    </div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(3)">← BACK</button><button class="btn btn-go" onclick="next(3)">NEXT →</button></div>
+  </div>
+
+  <div class="step" id="s4">
+    <div class="step-heading">
+      <div class="step-num-label">Step 05 — Final Details</div>
+      <h2 class="step-title">Training & Goal</h2>
+      <p class="step-desc">Calibrate your drill schedule and primary objective.</p>
+    </div>
+    <div class="slider-box">
+      <div class="slider-top"><span class="slabel">Days training per week</span><span class="sval" id="freqVal">3 days</span></div>
+      <input type="range" min="1" max="6" value="3" id="freqSlider" oninput="slideUpdate()">
+      <div class="tick-row"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span></div>
+    </div>
+    <p class="step-desc" style="margin-bottom:16px;">Primary goal right now:</p>
+    <div class="opt-grid g3">
+      <button class="opt" onclick="pick(this,'goal','Compete and win tournaments')"><span class="opt-name">🏆 COMPETE</span><span class="opt-hint">Tournament prep. Results matter.</span></button>
+      <button class="opt" onclick="pick(this,'goal','Improve steadily and enjoy the journey')"><span class="opt-name">📈 IMPROVE</span><span class="opt-hint">Recreational. Getting better every session.</span></button>
+      <button class="opt" onclick="pick(this,'goal','Dominate at my gym')"><span class="opt-name">😤 DOMINATE</span><span class="opt-hint">Be the problem in every roll.</span></button>
+    </div>
+    <button class="btn btn-generate" onclick="generate()">⚡ GENERATE MY GAME PLAN</button>
+    <div class="nav-row" style="margin-top:16px"><button class="btn btn-back" onclick="back(4)">← BACK</button><span></span></div>
+  </div>
+</div>
+
+<div id="output" style="max-width:860px; margin:0 auto; padding:40px 24px 80px;">
+  <div id="loadingWrap" class="loading-wrap">
+    <div class="loading-title">BUILDING YOUR<br>GAME PLAN</div>
+    <div class="loading-bar"></div>
+    <div class="loading-msg" id="loadMsg">ANALYSING YOUR PROFILE...</div>
+  </div>
+  <div id="resultWrap" style="display:none">
+    <div class="result-header">
+      <div class="result-tag">Personalised Game Plan — TAPGOD AI</div>
+      <div class="result-title" id="rTitle">YOUR GAME PLAN</div>
+      <div class="result-badge" id="rBadge">BLUE BELT // GUARD PLAYER</div>
+    </div>
+    <div class="ai-wrap" id="aiWrap"></div>
+    <button class="restart" onclick="restart()">↺ Build a new game plan</button>
+  </div>
+  <div class="footer-strip"><span>TAPGOD</span> — Built by Mike 🥋 — tapgod.app</div>
+</div>
+
+<script>
+const D = { belt:'', style:'', position:'', weakness:[], goal:'', freq:3 };
+
+function startApp() {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function pick(btn, key, val) {
+  btn.closest('.opt-grid').querySelectorAll('.opt').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D[key] = val;
+}
+
+function multi(btn, key, val) {
+  if (btn.classList.contains('sel')) {
+    btn.classList.remove('sel');
+    D[key] = D[key].filter(v => v !== val);
+  } else {
+    const sel = btn.closest('.opt-grid').querySelectorAll('.opt.sel');
+    if (sel.length >= 2) return;
+    btn.classList.add('sel');
+    if (!D[key].includes(val)) D[key].push(val);
+  }
+}
+
+function slideUpdate() {
+  const v = document.getElementById('freqSlider').value;
+  D.freq = parseInt(v);
+  document.getElementById('freqVal').textContent = v + (v==1?' day':' days');
+}
+
+const REQ = ['belt','style','position',null,'goal'];
+
+function next(i) {
+  if (REQ[i] && !D[REQ[i]]) { alert('Please make a selection.'); return; }
+  if (i===3 && D.weakness.length===0) { alert('Pick at least one weakness.'); return; }
+  document.getElementById('s'+i).classList.remove('active');
+  document.getElementById('s'+(i+1)).classList.add('active');
+  document.getElementById('ps'+i).classList.replace('active','done');
+  document.getElementById('ps'+(i+1)).classList.add('active');
+  document.getElementById('stepLabel').textContent = 'STEP '+(i+2)+' OF 5';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function back(i) {
+  document.getElementById('s'+i).classList.remove('active');
+  document.getElementById('s'+(i-1)).classList.add('active');
+  document.getElementById('ps'+i).classList.remove('active');
+  document.getElementById('ps'+(i-1)).classList.replace('done','active');
+  document.getElementById('stepLabel').textContent = 'STEP '+i+' OF 5';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+const MSGS = ['ANALYSING YOUR PROFILE...','MAPPING ATTACK CHAINS...','CALCULATING WEAK POINTS...','BUILDING DRILL SCHEDULE...','ASSEMBLING GAME PLAN...','FINAL CALIBRATION...'];
+
+async function generate() {
+  if (!D.goal) { alert('Please select your goal.'); return; }
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('output').style.display = 'block';
+  document.getElementById('loadingWrap').style.display = 'block';
+  document.getElementById('resultWrap').style.display = 'none';
+  window.scrollTo({top:0,behavior:'smooth'});
+
+  let mi = 0;
+  const iv = setInterval(() => {
+    document.getElementById('loadMsg').textContent = MSGS[mi++ % MSGS.length];
+  }, 900);
+
+  const prompt = `You are an elite Brazilian Jiu-Jitsu coach. Build a detailed personalised game plan.
+
+Profile:
+- Belt: ${D.belt}
+- Style: ${D.style}
+- Favourite position: ${D.position}
+- Weaknesses: ${D.weakness.join(', ')}
+- Training: ${D.freq} days/week
+- Goal: ${D.goal}
+
+Return EXACTLY these 6 sections with these exact headings:
+
+GAME PLAN IDENTITY
+2-3 sentences on their overall game identity and strategic philosophy.
+
+PRIMARY ATTACK SEQUENCE
+Their go-to A to B to C submission chain from their favourite position. List 4 specific techniques in order with brief explanation of each transition.
+
+BACKUP ARSENAL
+If primary fails — 3 alternative attacks or sweeps with brief context.
+
+GUARD PASSING SYSTEM
+2-3 specific passes suited to their style and body type with brief cues.
+
+DEFENSIVE PRIORITIES
+Based on their weaknesses — 3 specific escapes or defensive movements to drill with brief cues.
+
+30-DAY FOCUS TECHNIQUE
+The single highest-leverage technique for this exact profile. Why this one. How to drill it.
+
+Be specific with technique names. Write like a coach who has watched this person roll for months.`;
+
+  try {
+    const res = await fetch('/.netlify/functions/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+
+    clearInterval(iv);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    const text = data.content.map(c => c.text||'').join('');
+
+    document.getElementById('rTitle').textContent = D.style.split('/')[0].trim().toUpperCase()+' GAME PLAN';
+    document.getElementById('rBadge').textContent = D.belt.toUpperCase()+' // '+D.position.toUpperCase();
+    document.getElementById('aiWrap').innerHTML = parseOutput(text);
+    document.getElementById('loadingWrap').style.display = 'none';
+    document.getElementById('resultWrap').style.display = 'block';
+
+  } catch(e) {
+    clearInterval(iv);
+    document.getElementById('loadingWrap').style.display = 'none';
+    document.getElementById('resultWrap').style.display = 'block';
+    document.getElementById('aiWrap').innerHTML = '<div class="error-box">CONNECTION ERROR — Please try again.</div>';
+  }
+}
+
+function parseOutput(text) {
+  const sections = ['GAME PLAN IDENTITY','PRIMARY ATTACK SEQUENCE','BACKUP ARSENAL','GUARD PASSING SYSTEM','DEFENSIVE PRIORITIES','30-DAY FOCUS TECHNIQUE'];
+  let html = '';
+  const lines = text.split('\n');
+  let currentSection = '';
+  let currentContent = [];
+
+  function flushSection() {
+    if (!currentSection) return;
+    const body = currentContent.join('\n').trim();
+    const formatted = body.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').split('\n').map(l => {
+      l = l.trim();
+      if (!l) return '';
+      if (l.startsWith('-') || l.startsWith('•')) return '<li>'+l.replace(/^[-•]\s*/,'')+'</li>';
+      if (l.includes('→') || l.match(/^\d\./)) return '<li>'+l+'</li>';
+      return '<p>'+l+'</p>';
+    }).join('');
+    const hasLi = formatted.includes('<li>');
+    const bodyHtml = hasLi ? '<ul>'+formatted.replace(/<p>/g,'').replace(/<\/p>/g,'')+'</ul>' : formatted;
+    html += '<div class="ai-section" style="animation-delay:'+sections.indexOf(currentSection)*0.1+'s"><div class="ai-section-title">'+currentSection+'</div><div class="ai-body">'+bodyHtml+'</div></div>';
+    currentContent = [];
+  }
+
+  lines.forEach(line => {
+    const clean = line.trim().replace(/\*\*/g,'').replace(/#+\s*/,'').toUpperCase();
+    const matched = sections.find(s => clean.includes(s));
+    if (matched) { flushSection(); currentSection = matched; } else { currentContent.push(line); }
+  });
+  flushSection();
+  return html || '<div class="ai-section"><div class="ai-body"><p>'+text+'</p></div></div>';
+}
+
+function restart() {
+  Object.assign(D, {belt:'',style:'',position:'',weakness:[],goal:'',freq:3});
+  document.querySelectorAll('.opt').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('freqSlider').value=3;
+  document.getElementById('freqVal').textContent='3 days';
+  document.querySelectorAll('.step').forEach((s,i)=>{s.classList.remove('active');if(i===0)s.classList.add('active');});
+  document.querySelectorAll('.prog-seg').forEach((p,i)=>{p.classList.remove('active','done');if(i===0)p.classList.add('active');});
+  document.getElementById('stepLabel').textContent='STEP 1 OF 5';
+  document.getElementById('output').style.display='none';
+  document.getElementById('landing').style.display='flex';
+  document.getElementById('app').style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>
