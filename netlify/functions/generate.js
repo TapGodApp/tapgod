@@ -4,7 +4,11 @@ exports.handler = async function(event) {
   }
 
   try {
-    const { prompt } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const prompt = body.prompt;
+    
+    console.log('API Key exists:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('Prompt length:', prompt ? prompt.length : 0);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -21,14 +25,20 @@ exports.handler = async function(event) {
     });
 
     const data = await response.json();
+    console.log('Response status:', response.status);
+    console.log('Response data:', JSON.stringify(data).substring(0, 200));
     
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify(data)
     };
 
   } catch (err) {
+    console.log('Error:', err.message);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: err.message })
