@@ -2,14 +2,8 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
-
   try {
-    const body = JSON.parse(event.body);
-    const prompt = body.prompt;
-    
-    console.log('API Key exists:', !!process.env.ANTHROPIC_API_KEY);
-    console.log('Prompt length:', prompt ? prompt.length : 0);
-
+    const { prompt } = JSON.parse(event.body);
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -18,27 +12,18 @@ exports.handler = async function(event) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'model: 'claude-sonnet-4-5',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })
     });
-
     const data = await response.json();
-    console.log('Response status:', response.status);
-    console.log('Response data:', JSON.stringify(data).substring(0, 200));
-    
     return {
       statusCode: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify(data)
     };
-
   } catch (err) {
-    console.log('Error:', err.message);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: err.message })
