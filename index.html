@@ -131,6 +131,11 @@
 </style>
 </head>
 <body>
+<!-- Hidden Netlify form for email capture -->
+<form name="tapgod-emails" netlify netlify-honeypot="bot-field" hidden>
+  <input type="email" name="email">
+</form>
+
 <div id="landing">
   <nav class="nav">
     <div class="nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
@@ -277,14 +282,14 @@
     <div class="ai-wrap" id="aiWrap"></div>
     
     <div id="emailCapture" style="background:var(--surface);border:1px solid var(--gold);padding:28px;margin-top:24px;text-align:center;">
-      <div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--gold);letter-spacing:4px;margin-bottom:12px;">SAVE YOUR GAME PLAN</div>
-      <div style="font-family:Bebas Neue,sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;">WANT THE JOURNAL FEATURE?</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:4px;margin-bottom:12px;">SAVE YOUR GAME PLAN</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;">WANT THE JOURNAL FEATURE?</div>
       <div style="font-size:15px;color:#6a8a9a;margin-bottom:20px;line-height:1.5;">Drop your email to save this game plan and get early access to the TAPGOD journal.</div>
-      <form name="tapgod-emails" method="POST" data-netlify="true" style="display:flex;gap:10px;max-width:400px;margin:0 auto;">
-        <input type="hidden" name="form-name" value="tapgod-emails">
-        <input type="email" name="email" placeholder="your@email.com" required style="flex:1;background:var(--card);border:1px solid var(--border2);color:var(--white);padding:12px 16px;font-size:16px;outline:none;">
-        <button type="submit" style="font-family:Bebas Neue,sans-serif;font-size:18px;letter-spacing:2px;padding:12px 24px;background:var(--gold);color:var(--bg);border:none;cursor:pointer;">JOIN</button>
-      </form>
+      <div style="display:flex;gap:10px;max-width:400px;margin:0 auto;" id="emailFormWrap">
+        <input type="email" id="emailInput" placeholder="your@email.com" style="flex:1;background:var(--card);border:1px solid var(--border2);color:var(--white);padding:12px 16px;font-size:16px;outline:none;">
+        <button onclick="submitEmail()" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:12px 24px;background:var(--gold);color:var(--bg);border:none;cursor:pointer;">JOIN</button>
+      </div>
+      <div id="emailSuccess" style="display:none;margin-top:16px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--green);letter-spacing:2px;">✓ YOU ARE IN — WE WILL BE IN TOUCH</div>
     </div>
 
     <button class="restart" onclick="restart()">↺ Build a new game plan</button>
@@ -450,6 +455,20 @@ function parseOutput(text) {
   });
   flushSection();
   return html || '<div class="ai-section"><div class="ai-body"><p>'+text+'</p></div></div>';
+}
+
+async function submitEmail() {
+  const email = document.getElementById('emailInput').value;
+  if (!email || !email.includes('@')) { alert('Please enter a valid email.'); return; }
+  try {
+    await fetch('/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({'form-name': 'tapgod-emails', 'email': email}).toString()
+    });
+  } catch(e) {}
+  document.getElementById('emailFormWrap').style.display = 'none';
+  document.getElementById('emailSuccess').style.display = 'block';
 }
 
 function restart() {
