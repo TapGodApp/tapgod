@@ -681,24 +681,6 @@ function restart() {
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-// ===== SUPABASE + JOURNAL =====
-const SUPA_URL = 'https://xrimvlfrtziphahnbwqm.supabase.co';
-const SUPA_KEY = 'sb_publishable_Okn9JFTVq6hnBwtUq3TOYA_Rh0lbLoJ';
-const db = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
-
-function showSection(section) {
-  document.getElementById('landing').style.display = 'none';
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('output').style.display = 'none';
-  document.getElementById('journal').style.display = 'none';
-  if (section === 'landing') {
-    document.getElementById('landing').style.display = 'flex';
-  } else if (section === 'journal') {
-    document.getElementById('journal').style.display = 'block';
-    loadEntries();
-  }
-  window.scrollTo({top:0,behavior:'smooth'});
-}
 </script>
 
 <!-- ===== JOURNAL ===== -->
