@@ -5,41 +5,112 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TAPGOD — BJJ Game Plan Builder</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-// ===== SUPABASE + JOURNAL =====
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===== SUPABASE + AUTH + JOURNAL =====
 const SUPA_URL = 'https://xrimvlfrtziphahnbwqm.supabase.co';
 const SUPA_KEY = 'sb_publishable_Okn9JFTVq6hnBwtUq3TOYA_Rh0lbLoJ';
-const db = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+let db = null;
+let currentUser = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    updateAuthUI();
+  }
+  db.auth.onAuthStateChange((_event, session) => {
+    currentUser = session ? session.user : null;
+    updateAuthUI();
+  });
+});
+
+function updateAuthUI() {
+  const authBtn = document.getElementById('authBtn');
+  const userInfo = document.getElementById('userInfo');
+  if (currentUser) {
+    if (authBtn) authBtn.textContent = 'LOGOUT';
+    if (userInfo) userInfo.textContent = currentUser.email;
+  } else {
+    if (authBtn) authBtn.textContent = 'LOGIN / SIGN UP';
+    if (userInfo) userInfo.textContent = '';
+  }
+}
 
 function showSection(section) {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('output').style.display = 'none';
   document.getElementById('journal').style.display = 'none';
+  document.getElementById('authModal').style.display = 'none';
   if (section === 'landing') {
     document.getElementById('landing').style.display = 'flex';
   } else if (section === 'journal') {
+    if (!currentUser) {
+      showAuthModal();
+      return;
+    }
     document.getElementById('journal').style.display = 'block';
     loadEntries();
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
+function showAuthModal() {
+  document.getElementById('authModal').style.display = 'flex';
+}
+
+function hideAuthModal() {
+  document.getElementById('authModal').style.display = 'none';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value.trim();
+  const msg = document.getElementById('authMsg');
+  
+  if (!email || !password) { msg.textContent = 'Please enter email and password.'; return; }
+  
+  msg.textContent = 'SIGNING IN...';
+  
+  // Try sign in first
+  const { data: signInData, error: signInError } = await db.auth.signInWithPassword({ email, password });
+  
+  if (signInError) {
+    // If sign in fails, try sign up
+    const { data: signUpData, error: signUpError } = await db.auth.signUp({ email, password });
+    if (signUpError) {
+      msg.textContent = signUpError.message;
+      return;
+    }
+    msg.textContent = 'ACCOUNT CREATED — CHECK EMAIL TO VERIFY';
+    setTimeout(() => hideAuthModal(), 2000);
+  } else {
+    currentUser = signInData.user;
+    hideAuthModal();
+    showSection('journal');
+  }
+}
+
+async function handleLogout() {
+  await db.auth.signOut();
+  currentUser = null;
+  showSection('landing');
+}
+
 async function saveEntry() {
   const text = document.getElementById('journalInput').value.trim();
   if (!text) { alert('Write something first!'); return; }
+  if (!currentUser) { showAuthModal(); return; }
   
   document.getElementById('savingMsg').style.display = 'block';
   
-  // Call our Netlify function to get AI analysis
   let category = 'GENERAL';
   let summary = '';
   
   try {
-    const aiPrompt = `Analyse this BJJ training journal entry and respond with ONLY a JSON object (no markdown, no backticks):
-{"category": "one of: GUARD GAME, PASSING, MOUNT, BACK CONTROL, SIDE CONTROL, TAKEDOWNS, LEG LOCKS, SUBMISSIONS, ESCAPES, CONCEPTS, COMPETITION PREP", "summary": "one sentence insight about what they worked on and a key coaching point"}
-
-Entry: "${text}"`;
+    const aiPrompt = 'Analyse this BJJ training journal entry and respond with ONLY a JSON object (no markdown, no backticks): {"category": "one of: GUARD GAME, PASSING, MOUNT, BACK CONTROL, SIDE CONTROL, TAKEDOWNS, LEG LOCKS, SUBMISSIONS, ESCAPES, CONCEPTS, COMPETITION PREP", "summary": "one sentence insight about what they worked on and a key coaching point"} Entry: "' + text + '"';
 
     const res = await fetch('/.netlify/functions/generate', {
       method: 'POST',
@@ -56,27 +127,14 @@ Entry: "${text}"`;
     summary = '';
   }
 
-  // Save to Supabase
-  if (db) {
-    const userEmail = localStorage.getItem('tapgod_email') || 'anonymous';
-    await db.from('journal_entries').insert([{
-      email: userEmail,
-      entry: text,
-      category: category,
-      ai_summary: summary
-    }]);
-  } else {
-    // Fallback to localStorage if Supabase not available
-    const entries = JSON.parse(localStorage.getItem('tapgod_journal') || '[]');
-    entries.unshift({
-      id: Date.now(),
-      created_at: new Date().toISOString(),
-      entry: text,
-      category: category,
-      ai_summary: summary
-    });
-    localStorage.setItem('tapgod_journal', JSON.stringify(entries));
-  }
+  // Save to Supabase with user_id
+  await db.from('journal_entries').insert([{
+    user_id: currentUser.id,
+    email: currentUser.email,
+    entry: text,
+    category: category,
+    ai_summary: summary
+  }]);
 
   document.getElementById('journalInput').value = '';
   document.getElementById('savingMsg').style.display = 'none';
@@ -87,17 +145,14 @@ async function loadEntries() {
   const list = document.getElementById('entriesList');
   let entries = [];
 
-  if (db) {
-    const userEmail = localStorage.getItem('tapgod_email') || 'anonymous';
+  if (db && currentUser) {
     const { data } = await db
       .from('journal_entries')
       .select('*')
-      .eq('email', userEmail)
+      .eq('user_id', currentUser.id)
       .order('created_at', {ascending: false})
-      .limit(20);
+      .limit(50);
     entries = data || [];
-  } else {
-    entries = JSON.parse(localStorage.getItem('tapgod_journal') || '[]');
   }
 
   if (entries.length === 0) {
@@ -644,107 +699,16 @@ function showSection(section) {
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
-
-async function saveEntry() {
-  const text = document.getElementById('journalInput').value.trim();
-  if (!text) { alert('Write something first!'); return; }
-  
-  document.getElementById('savingMsg').style.display = 'block';
-  
-  // Call our Netlify function to get AI analysis
-  let category = 'GENERAL';
-  let summary = '';
-  
-  try {
-    const aiPrompt = `Analyse this BJJ training journal entry and respond with ONLY a JSON object (no markdown, no backticks):
-{"category": "one of: GUARD GAME, PASSING, MOUNT, BACK CONTROL, SIDE CONTROL, TAKEDOWNS, LEG LOCKS, SUBMISSIONS, ESCAPES, CONCEPTS, COMPETITION PREP", "summary": "one sentence insight about what they worked on and a key coaching point"}
-
-Entry: "${text}"`;
-
-    const res = await fetch('/.netlify/functions/generate', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt: aiPrompt})
-    });
-    const data = await res.json();
-    const aiText = data.content[0].text;
-    const parsed = JSON.parse(aiText.replace(/```json|```/g,'').trim());
-    category = parsed.category || 'GENERAL';
-    summary = parsed.summary || '';
-  } catch(e) {
-    category = 'GENERAL';
-    summary = '';
-  }
-
-  // Save to Supabase
-  if (db) {
-    const userEmail = localStorage.getItem('tapgod_email') || 'anonymous';
-    await db.from('journal_entries').insert([{
-      email: userEmail,
-      entry: text,
-      category: category,
-      ai_summary: summary
-    }]);
-  } else {
-    // Fallback to localStorage if Supabase not available
-    const entries = JSON.parse(localStorage.getItem('tapgod_journal') || '[]');
-    entries.unshift({
-      id: Date.now(),
-      created_at: new Date().toISOString(),
-      entry: text,
-      category: category,
-      ai_summary: summary
-    });
-    localStorage.setItem('tapgod_journal', JSON.stringify(entries));
-  }
-
-  document.getElementById('journalInput').value = '';
-  document.getElementById('savingMsg').style.display = 'none';
-  loadEntries();
-}
-
-async function loadEntries() {
-  const list = document.getElementById('entriesList');
-  let entries = [];
-
-  if (db) {
-    const userEmail = localStorage.getItem('tapgod_email') || 'anonymous';
-    const { data } = await db
-      .from('journal_entries')
-      .select('*')
-      .eq('email', userEmail)
-      .order('created_at', {ascending: false})
-      .limit(20);
-    entries = data || [];
-  } else {
-    entries = JSON.parse(localStorage.getItem('tapgod_journal') || '[]');
-  }
-
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="empty-state">NO SESSIONS LOGGED YET — YOUR JOURNEY STARTS HERE</div>';
-    return;
-  }
-
-  list.innerHTML = entries.map(e => {
-    const date = new Date(e.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
-    return `<div class="entry-card">
-      <div class="entry-date">${date}</div>
-      <div class="entry-category">${e.category}</div>
-      <div class="entry-text">${e.entry}</div>
-      ${e.ai_summary ? `<div class="entry-summary">💡 ${e.ai_summary}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
 </script>
 
 <!-- ===== JOURNAL ===== -->
 <div id="journal">
   <div class="journal-header">
     <div class="journal-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
-    <div class="nav-tabs">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="userInfo" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#3d5566;letter-spacing:1px;"></span>
       <button class="nav-tab" onclick="showSection('landing')">GAME PLAN</button>
-      <button class="nav-tab active" onclick="showSection('journal')">JOURNAL</button>
+      <button id="authBtn" class="nav-tab active" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
     </div>
   </div>
 
@@ -767,6 +731,21 @@ async function loadEntries() {
   <div id="entriesList"><div class="empty-state">NO SESSIONS LOGGED YET — YOUR JOURNEY STARTS HERE</div></div>
 
   <div class="footer-strip" style="margin-top:40px;"><span>TAPGOD</span> — Built by Mike 🥋 — tapgod.app</div>
+</div>
+
+
+<!-- AUTH MODAL -->
+<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#0c1014;border:1px solid #d4a843;padding:40px;max-width:400px;width:90%;position:relative;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#d4a843;letter-spacing:4px;margin-bottom:12px;">YOUR ACCOUNT</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:24px;color:#eef3f7;">LOGIN OR SIGN UP</div>
+    <input type="email" id="authEmail" placeholder="your@email.com" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:12px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+    <input type="password" id="authPassword" placeholder="password" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:12px 16px;font-size:16px;margin-bottom:16px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+    <button onclick="handleAuth()" style="width:100%;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px;background:#d4a843;color:#060809;border:none;cursor:pointer;margin-bottom:12px;">ENTER TAPGOD</button>
+    <div id="authMsg" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:1px;min-height:16px;"></div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#3d5566;margin-top:12px;">New here? Entering your details will create an account automatically.</div>
+    <button onclick="hideAuthModal()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:#3d5566;font-size:20px;cursor:pointer;">✕</button>
+  </div>
 </div>
 
 </body>
