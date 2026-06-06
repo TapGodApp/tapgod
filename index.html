@@ -38,12 +38,15 @@ function updateAuthUI() {
   }
 }
 
+const CHECKOUT_URL = 'https://tapgod.lemonsqueezy.com/checkout/buy/57118a96-62bb-4a87-8f5f-6c1c9d3b60e6';
+
 function showSection(section) {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('output').style.display = 'none';
   document.getElementById('journal').style.display = 'none';
   document.getElementById('authModal').style.display = 'none';
+  document.getElementById('upgradeWall').style.display = 'none';
   if (section === 'landing') {
     document.getElementById('landing').style.display = 'flex';
   } else if (section === 'journal') {
@@ -51,10 +54,29 @@ function showSection(section) {
       showAuthModal();
       return;
     }
-    document.getElementById('journal').style.display = 'block';
-    loadEntries();
+    // Check subscription status
+    checkSubscription();
   }
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function checkSubscription() {
+  // Check if user has active subscription via Supabase
+  const { data } = await db
+    .from('subscriptions')
+    .select('status')
+    .eq('user_id', currentUser.id)
+    .eq('status', 'active')
+    .single();
+  
+  if (data) {
+    // Has active subscription
+    document.getElementById('journal').style.display = 'block';
+    loadEntries();
+  } else {
+    // No subscription — show upgrade wall
+    document.getElementById('upgradeWall').style.display = 'flex';
+  }
 }
 
 function showAuthModal() {
@@ -715,6 +737,37 @@ function restart() {
   <div class="footer-strip" style="margin-top:40px;"><span>TAPGOD</span> — Built by Mike 🥋 — tapgod.app</div>
 </div>
 
+
+<!-- UPGRADE WALL -->
+<div id="upgradeWall" style="display:none;position:fixed;inset:0;background:rgba(6,8,9,0.97);z-index:9998;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:40px;">
+  <div style="max-width:480px;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:4px;margin-bottom:16px;">TAPGOD PRO</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:56px;letter-spacing:3px;color:var(--white);line-height:1;margin-bottom:8px;">UNLOCK YOUR<br><span style="color:var(--gold);">FULL JOURNEY</span></div>
+    <div style="font-size:16px;color:#6a8a9a;margin-bottom:40px;line-height:1.6;">The game plan builder is always free.<br>Your journal, AI insights, and full progress tracking are Pro features.</div>
+    
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:40px;text-align:left;">
+      <div style="display:flex;gap:12px;align-items:center;font-size:15px;color:#8aadbd;">
+        <span style="color:var(--gold);font-size:18px;">✓</span> Session journal — log every class
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:15px;color:#8aadbd;">
+        <span style="color:var(--gold);font-size:18px;">✓</span> AI pattern recognition across sessions
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:15px;color:#8aadbd;">
+        <span style="color:var(--gold);font-size:18px;">✓</span> Automatic technique categorisation
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:15px;color:#8aadbd;">
+        <span style="color:var(--gold);font-size:18px;">✓</span> Cross-device sync — your data everywhere
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:15px;color:#8aadbd;">
+        <span style="color:var(--gold);font-size:18px;">✓</span> Drill tracker and competition prep (coming soon)
+      </div>
+    </div>
+
+    <a href="https://tapgod.lemonsqueezy.com/checkout/buy/57118a96-62bb-4a87-8f5f-6c1c9d3b60e6" target="_blank" style="display:block;font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;padding:18px 48px;background:var(--gold);color:var(--bg);text-decoration:none;margin-bottom:16px;transition:all 0.2s;">START 7-DAY FREE TRIAL →</a>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:24px;">£6.99/month after trial • Cancel anytime</div>
+    <button onclick="showSection('landing')" style="background:transparent;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;text-decoration:underline;">← Back to game plan builder</button>
+  </div>
+</div>
 
 <!-- AUTH MODAL -->
 <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
