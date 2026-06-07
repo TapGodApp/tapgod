@@ -89,30 +89,26 @@ function hideAuthModal() {
 
 async function handleAuth() {
   const email = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value.trim();
   const msg = document.getElementById('authMsg');
   
-  if (!email || !password) { msg.textContent = 'Please enter email and password.'; return; }
+  if (!email) { msg.textContent = 'Please enter your email.'; return; }
   
-  msg.textContent = 'SIGNING IN...';
+  msg.textContent = 'SENDING YOUR LOGIN LINK...';
   
-  // Try sign in first
-  const { data: signInData, error: signInError } = await db.auth.signInWithPassword({ email, password });
-  
-  if (signInError) {
-    // If sign in fails, try sign up
-    const { data: signUpData, error: signUpError } = await db.auth.signUp({ email, password });
-    if (signUpError) {
-      msg.textContent = signUpError.message;
-      return;
+  const { error } = await db.auth.signInWithOtp({ 
+    email,
+    options: {
+      emailRedirectTo: 'https://thunderous-panda-418716.netlify.app'
     }
-    msg.textContent = 'ACCOUNT CREATED — CHECK EMAIL TO VERIFY';
-    setTimeout(() => hideAuthModal(), 2000);
-  } else {
-    currentUser = signInData.user;
-    hideAuthModal();
-    showSection('journal');
+  });
+  
+  if (error) {
+    msg.textContent = error.message;
+    return;
   }
+  
+  msg.textContent = '✓ CHECK YOUR EMAIL — CLICK THE LINK TO LOGIN';
+  document.getElementById('authEmail').value = '';
 }
 
 async function handleLogout() {
@@ -773,12 +769,11 @@ function restart() {
 <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#0c1014;border:1px solid #d4a843;padding:40px;max-width:400px;width:90%;position:relative;">
     <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#d4a843;letter-spacing:4px;margin-bottom:12px;">YOUR ACCOUNT</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:24px;color:#eef3f7;">LOGIN OR SIGN UP</div>
-    <input type="email" id="authEmail" placeholder="your@email.com" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:12px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
-    <input type="password" id="authPassword" placeholder="password" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:12px 16px;font-size:16px;margin-bottom:16px;outline:none;font-family:'Barlow Condensed',sans-serif;">
-    <button onclick="handleAuth()" style="width:100%;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px;background:#d4a843;color:#060809;border:none;cursor:pointer;margin-bottom:12px;">ENTER TAPGOD</button>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:2px;margin-bottom:8px;color:#eef3f7;">JOIN TAPGOD</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#3d5566;margin-bottom:24px;line-height:1.6;">Enter your email and we'll send you a login link. No password needed.</div>
+    <input type="email" id="authEmail" placeholder="your@email.com" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:12px 16px;font-size:16px;margin-bottom:16px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+    <button onclick="handleAuth()" style="width:100%;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px;background:#d4a843;color:#060809;border:none;cursor:pointer;margin-bottom:12px;">SEND MY LOGIN LINK →</button>
     <div id="authMsg" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#d4a843;letter-spacing:1px;min-height:16px;"></div>
-    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#3d5566;margin-top:12px;">New here? Entering your details will create an account automatically.</div>
     <button onclick="hideAuthModal()" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:#3d5566;font-size:20px;cursor:pointer;">✕</button>
   </div>
 </div>
