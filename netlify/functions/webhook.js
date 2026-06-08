@@ -22,9 +22,8 @@ exports.handler = async function(event) {
       process.env.SUPABASE_SERVICE_KEY
     );
 
-    // Get user by email
-    const { data: users } = await db.auth.admin.listUsers();
-    const user = users?.users?.find(u => u.email === userEmail);
+    const { data: { users } } = await db.auth.admin.listUsers();
+    const user = users?.find(u => u.email === userEmail);
 
     if (!user) {
       console.log('User not found:', userEmail);
@@ -32,21 +31,17 @@ exports.handler = async function(event) {
     }
 
     if (eventName === 'subscription_created' || eventName === 'subscription_resumed') {
-      // Add active subscription
       await db.from('subscriptions').upsert({
         user_id: user.id,
         status: 'active'
       }, { onConflict: 'user_id' });
-      console.log('Subscription activated for:', userEmail);
     }
 
     if (eventName === 'subscription_cancelled' || eventName === 'subscription_expired') {
-      // Cancel subscription
       await db.from('subscriptions').upsert({
         user_id: user.id,
         status: 'cancelled'
       }, { onConflict: 'user_id' });
-      console.log('Subscription cancelled for:', userEmail);
     }
 
     return { statusCode: 200, body: 'OK' };
