@@ -181,10 +181,14 @@ async function loadEntries() {
   list.innerHTML = entries.map(e => {
     const date = new Date(e.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
     return `<div class="entry-card">
-      <div class="entry-date">${date}</div>
-      <div class="entry-category">${e.category}</div>
-      <div class="entry-text">${e.entry}</div>
-      ${e.ai_summary ? `<div class="entry-summary">💡 ${e.ai_summary}</div>` : ''}
+      <div class="entry-card-top">
+        <div class="entry-category">${e.category || 'GENERAL'}</div>
+        <div class="entry-date">${date}</div>
+      </div>
+      <div class="entry-body">
+        <div class="entry-text">${e.entry}</div>
+      </div>
+      ${e.ai_summary ? `<div class="entry-summary-wrap"><div class="entry-summary-icon">→</div><div class="entry-summary">${e.ai_summary}</div></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -315,29 +319,47 @@ async function loadEntries() {
   .footer-strip span { color: var(--gold); }
 
   /* ========== JOURNAL ========== */
-  #journal { display:none; max-width:860px; margin:0 auto; padding:40px 24px 80px; }
-  .journal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:40px; padding-bottom:20px; border-bottom:1px solid var(--border); }
-  .journal-logo { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:2px; }
-  .journal-logo .tap { color:var(--white); }
-  .journal-logo .god { color:var(--gold); }
-  .nav-tabs { display:flex; gap:4px; }
-  .nav-tab { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; padding:8px 20px; border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all 0.15s; background:transparent; }
-  .nav-tab.active { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
-  .nav-tab:hover { border-color:var(--border2); color:var(--white); }
-  .journal-entry-box { background:var(--card); border:1px solid var(--border); padding:28px; margin-bottom:24px; }
-  .journal-entry-box textarea { width:100%; background:transparent; border:none; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:18px; line-height:1.6; resize:vertical; min-height:140px; outline:none; }
-  .journal-entry-box textarea::placeholder { color:var(--muted); }
-  .journal-submit { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:3px; padding:14px 40px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; margin-top:16px; }
-  .journal-submit:hover { background:var(--gold2); }
-  .entry-card { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--gold); padding:20px 24px; margin-bottom:12px; animation:fadeUp 0.3s ease; }
-  .entry-date { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:2px; margin-bottom:8px; }
-  .entry-category { display:inline-block; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); background:var(--gold-dim); padding:3px 10px; letter-spacing:2px; margin-bottom:10px; }
-  .entry-text { font-size:15px; color:#8aadbd; line-height:1.6; margin-bottom:10px; }
-  .entry-summary { font-size:13px; color:var(--muted); line-height:1.5; font-style:italic; border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
-  .entries-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:3px; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:12px; }
-  .entries-title::after { content:''; flex:1; height:1px; background:var(--border); }
-  .empty-state { text-align:center; padding:48px 24px; color:var(--muted); font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:2px; }
-  .saving-msg { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--gold); letter-spacing:2px; margin-top:12px; display:none; }
+  #journal { display:none; min-height:100vh; background:var(--bg); }
+  .journal-nav { display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:100; }
+  .journal-nav-logo { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; }
+  .journal-nav-logo .tap { color:var(--white); }
+  .journal-nav-logo .god { color:var(--gold); }
+  .journal-nav-right { display:flex; align-items:center; gap:8px; }
+  .journal-nav-email { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; display:none; }
+  @media(min-width:500px){ .journal-nav-email { display:block; } }
+  .journal-nav-btn { font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:2px; padding:6px 16px; border:1px solid var(--border); color:var(--muted); cursor:pointer; background:transparent; transition:all 0.15s; }
+  .journal-nav-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .journal-nav-btn.gold { border-color:var(--gold); color:var(--gold); }
+  .journal-body { max-width:680px; margin:0 auto; padding:40px 20px 100px; }
+  .journal-hero { margin-bottom:40px; }
+  .journal-hero-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:4px; text-transform:uppercase; margin-bottom:10px; }
+  .journal-hero-title { font-family:'Bebas Neue',sans-serif; font-size:48px; letter-spacing:2px; color:var(--white); line-height:1; margin-bottom:6px; }
+  .journal-hero-sub { font-size:15px; color:var(--muted); line-height:1.5; }
+  .journal-input-wrap { margin-bottom:32px; }
+  .journal-input-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; }
+  .journal-textarea { width:100%; background:var(--card); border:1px solid var(--border); border-radius:0; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:17px; line-height:1.7; resize:none; min-height:160px; outline:none; padding:20px; box-sizing:border-box; transition:border-color 0.2s; }
+  .journal-textarea:focus { border-color:var(--border2); }
+  .journal-textarea::placeholder { color:var(--muted); font-size:16px; }
+  .journal-actions { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 36px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; }
+  .journal-submit-btn:hover { background:var(--gold2); transform:translateY(-1px); }
+  .journal-saving { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:2px; display:none; }
+  .journal-divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+  .journal-divider-label { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:3px; color:var(--muted); white-space:nowrap; }
+  .journal-divider-line { flex:1; height:1px; background:var(--border); }
+  .entry-card { background:var(--card); border:1px solid var(--border); padding:0; margin-bottom:12px; animation:fadeUp 0.3s ease; overflow:hidden; }
+  .entry-card-top { padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .entry-category { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--gold); background:var(--gold-dim); padding:4px 10px; letter-spacing:3px; text-transform:uppercase; border:1px solid rgba(212,168,67,0.2); }
+  .entry-date { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; }
+  .entry-body { padding:16px 20px; }
+  .entry-text { font-size:15px; color:#8aadbd; line-height:1.7; margin-bottom:0; }
+  .entry-summary-wrap { padding:12px 20px 16px; border-top:1px solid var(--border); background:var(--surface); display:flex; gap:10px; align-items:flex-start; }
+  .entry-summary-icon { color:var(--gold); font-size:12px; flex-shrink:0; margin-top:2px; font-family:'Share Tech Mono',monospace; }
+  .entry-summary { font-size:13px; color:#6a8a9a; line-height:1.6; font-style:italic; }
+  .empty-state { text-align:center; padding:64px 24px; }
+  .empty-state-icon { font-size:32px; margin-bottom:16px; opacity:0.3; }
+  .empty-state-title { font-family:'Bebas Neue',sans-serif; font-size:24px; letter-spacing:2px; color:var(--muted); margin-bottom:8px; }
+  .empty-state-sub { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:2px; opacity:0.6; }
 
 </style>
 </head>
@@ -361,7 +383,7 @@ async function loadEntries() {
       <button class="cta-btn" onclick="startApp()" style="width:100%;">BUILD MY GAME PLAN →</button>
       <button onclick="showSection('journal')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">📓 SESSION JOURNAL</button>
     </div>
-    <p class="hero-footer">FREE — No signup required — Powered by AI</p>
+    <p class="hero-footer">Game plan free forever — Journal from £6.99/month</p>
     <div class="hero-stats">
       <div class="stat"><span class="stat-num">5</span><span class="stat-label">Questions</span></div>
       <div class="stat"><span class="stat-num">3</span><span class="stat-label">Minutes</span></div>
@@ -703,34 +725,46 @@ function restart() {
 
 <!-- ===== JOURNAL ===== -->
 <div id="journal">
-  <div class="journal-header">
-    <div class="journal-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span id="userInfo" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#3d5566;letter-spacing:1px;"></span>
-      <button class="nav-tab" onclick="showSection('landing')">GAME PLAN</button>
-      <button id="authBtn" class="nav-tab active" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
+  <nav class="journal-nav">
+    <div class="journal-nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
+    <div class="journal-nav-right">
+      <span id="userInfo" class="journal-nav-email"></span>
+      <button class="journal-nav-btn" onclick="showSection('landing')">GAME PLAN</button>
+      <button id="authBtn" class="journal-nav-btn gold" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
     </div>
-  </div>
+  </nav>
 
-  <div style="margin-bottom:32px;">
-    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:4px;margin-bottom:8px;">LOG YOUR SESSION</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;margin-bottom:8px;">WHAT DID YOU LEARN TODAY?</div>
-    <div style="font-size:15px;color:var(--muted);">Write anything — techniques, positions, what clicked, what didn't. AI will organise it for you.</div>
-  </div>
-
-  <div class="journal-entry-box">
-    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">TODAY'S SESSION</div>
-    <textarea id="journalInput" placeholder="e.g. Drilled scissor sweep from closed guard today. Coach showed me the hip bump setup first to get the reaction, then switch to scissor. Also worked on breaking posture — need to use both arms not just one..."></textarea>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <button class="journal-submit" onclick="saveEntry()">⚡ SAVE + ANALYSE</button>
-      <div class="saving-msg" id="savingMsg">ANALYSING YOUR SESSION...</div>
+  <div class="journal-body">
+    <div class="journal-hero">
+      <div class="journal-hero-label">Session Log</div>
+      <div class="journal-hero-title">WHAT DID YOU<br>LEARN TODAY?</div>
+      <div class="journal-hero-sub">Write anything — techniques, positions, what clicked, what didn't. AI organises it for you.</div>
     </div>
+
+    <div class="journal-input-wrap">
+      <div class="journal-input-label">Today's session</div>
+      <textarea class="journal-textarea" id="journalInput" placeholder="Drilled scissor sweep from closed guard. Coach showed me the hip bump setup first to create the reaction, then switch to scissor. Also worked on breaking posture — need to use both arms..."></textarea>
+      <div class="journal-actions">
+        <button class="journal-submit-btn" onclick="saveEntry()">⚡ SAVE + ANALYSE</button>
+        <div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
+      </div>
+    </div>
+
+    <div class="journal-divider">
+      <div class="journal-divider-label">PREVIOUS SESSIONS</div>
+      <div class="journal-divider-line"></div>
+    </div>
+
+    <div id="entriesList">
+      <div class="empty-state">
+        <div class="empty-state-icon">🥋</div>
+        <div class="empty-state-title">NO SESSIONS LOGGED YET</div>
+        <div class="empty-state-sub">YOUR JOURNEY STARTS HERE</div>
+      </div>
+    </div>
+
+    <div class="footer-strip" style="border-top:1px solid var(--border);margin-top:40px;"><span>TAPGOD</span> — Built by Mike 🥋 — tapgod.app</div>
   </div>
-
-  <div class="entries-title">PREVIOUS SESSIONS</div>
-  <div id="entriesList"><div class="empty-state">NO SESSIONS LOGGED YET — YOUR JOURNEY STARTS HERE</div></div>
-
-  <div class="footer-strip" style="margin-top:40px;"><span>TAPGOD</span> — Built by Mike 🥋 — tapgod.app</div>
 </div>
 
 
