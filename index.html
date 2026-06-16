@@ -165,20 +165,24 @@ function showSection(section) {
 }
 
 async function checkSubscription() {
-  // Check if user has active subscription via Supabase
-  const { data } = await db
-    .from('subscriptions')
-    .select('status')
-    .eq('user_id', currentUser.id)
-    .eq('status', 'active')
-    .single();
-  
-  if (data) {
-    // Has active subscription
-    document.getElementById('journal').style.display = 'block';
-    loadEntries();
-  } else {
-    // No subscription — show upgrade wall
+  try {
+    const { data, error } = await db
+      .from('subscriptions')
+      .select('status')
+      .eq('user_id', currentUser.id)
+      .eq('status', 'active')
+      .single();
+    
+    if (data && !error) {
+      // Has active subscription — let them in
+      document.getElementById('journal').style.display = 'block';
+      loadEntries();
+    } else {
+      // No subscription or any error — show upgrade wall
+      document.getElementById('upgradeWall').style.display = 'flex';
+    }
+  } catch(e) {
+    // Any exception — show upgrade wall, never bypass paywall
     document.getElementById('upgradeWall').style.display = 'flex';
   }
 }
@@ -577,7 +581,7 @@ async function loadEntries() {
     </div>
     <p class="hero-footer">Game plan free forever — Journal from £6.99/month</p>
     <div class="hero-stats">
-      <div class="stat"><span class="stat-num">5</span><span class="stat-label">Questions</span></div>
+      <div class="stat"><span class="stat-num">6</span><span class="stat-label">Questions</span></div>
       <div class="stat"><span class="stat-num">3</span><span class="stat-label">Minutes</span></div>
       <div class="stat"><span class="stat-num">1</span><span class="stat-label">Game plan</span></div>
     </div>
@@ -591,7 +595,7 @@ async function loadEntries() {
 <div id="app">
   <div class="app-header">
     <div class="app-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
-    <span class="app-step-label" id="stepLabel">STEP 1 OF 5</span>
+    <span class="app-step-label" id="stepLabel">STEP 1 OF 6</span>
   </div>
   <div class="progress" id="progressBar">
     <div class="prog-seg active" id="ps0"></div>
@@ -599,6 +603,7 @@ async function loadEntries() {
     <div class="prog-seg" id="ps2"></div>
     <div class="prog-seg" id="ps3"></div>
     <div class="prog-seg" id="ps4"></div>
+    <div class="prog-seg" id="ps5"></div>
   </div>
 
   <div class="step active" id="s0">
@@ -618,9 +623,9 @@ async function loadEntries() {
     <div class="nav-row"><span></span><button class="btn btn-go" onclick="next(0)">NEXT →</button></div>
   </div>
 
-  <div class="step" id="s1">
+  <div class="step" id="s2">
     <div class="step-heading">
-      <div class="step-num-label">Step 02 — Identity</div>
+      <div class="step-num-label">Step 03 — Identity</div>
       <h2 class="step-title">Your Natural Style</h2>
       <p class="step-desc">Your game plan should fit you — not a YouTube highlight reel.</p>
     </div>
@@ -632,12 +637,12 @@ async function loadEntries() {
       <button class="opt" onclick="pick(this,'style','Positional control / chess player')"><span class="opt-name">♟️ CHESS PLAYER</span><span class="opt-hint">Methodical. Control, score, minimise risk.</span></button>
       <button class="opt" onclick="pick(this,'style','Still finding my game')"><span class="opt-name">🔍 FINDING IT</span><span class="opt-hint">Let the plan help me discover my style.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(1)">← BACK</button><button class="btn btn-go" onclick="next(1)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(1)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
   </div>
 
-  <div class="step" id="s2">
+  <div class="step" id="s3">
     <div class="step-heading">
-      <div class="step-num-label">Step 03 — Strength</div>
+      <div class="step-num-label">Step 04 — Strength</div>
       <h2 class="step-title">Favourite Position</h2>
       <p class="step-desc">Where do you feel most dangerous?</p>
     </div>
@@ -652,12 +657,12 @@ async function loadEntries() {
       <button class="opt" onclick="pick(this,'position','X Guard / Single Leg X')"><span class="opt-name">X GUARD</span><span class="opt-hint">Athletic, dynamic, lots of sweeps.</span></button>
       <button class="opt" onclick="pick(this,'position','No clear favourite — well rounded')"><span class="opt-name">WELL ROUNDED</span><span class="opt-hint">Comfortable everywhere.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(2)">← BACK</button><button class="btn btn-go" onclick="next(2)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(5)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
   </div>
 
-  <div class="step" id="s3">
+  <div class="step" id="s4">
     <div class="step-heading">
-      <div class="step-num-label">Step 04 — Honest Assessment</div>
+      <div class="step-num-label">Step 05 — Honest Assessment</div>
       <h2 class="step-title">Biggest Weakness</h2>
       <p class="step-desc">A real game plan attacks your gaps. Be brutally honest.</p>
     </div>
@@ -670,12 +675,12 @@ async function loadEntries() {
       <button class="opt" onclick="multi(this,'weakness','Defending submissions')"><span class="opt-name">DEFENCE</span><span class="opt-hint">Getting caught by the same attacks repeatedly.</span></button>
       <button class="opt" onclick="multi(this,'weakness','Cardio and pacing')"><span class="opt-name">CARDIO / PACING</span><span class="opt-hint">Gassing out mid-roll and losing position.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(3)">← BACK</button><button class="btn btn-go" onclick="next(3)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(5)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
   </div>
 
-  <div class="step" id="s4">
+  <div class="step" id="s5">
     <div class="step-heading">
-      <div class="step-num-label">Step 05 — Final Details</div>
+      <div class="step-num-label">Step 06 — Final Details</div>
       <h2 class="step-title">Training & Goal</h2>
       <p class="step-desc">Calibrate your drill schedule and primary objective.</p>
     </div>
@@ -691,7 +696,7 @@ async function loadEntries() {
       <button class="opt" onclick="pick(this,'goal','Dominate at my gym')"><span class="opt-name">😤 DOMINATE</span><span class="opt-hint">Be the problem in every roll.</span></button>
     </div>
     <button class="btn btn-generate" onclick="generate()">⚡ GENERATE MY GAME PLAN</button>
-    <div class="nav-row" style="margin-top:16px"><button class="btn btn-back" onclick="back(4)">← BACK</button><span></span></div>
+    <div class="nav-row" style="margin-top:16px"><button class="btn btn-back" onclick="back(5)">← BACK</button><span></span></div>
   </div>
 </div>
 
@@ -726,7 +731,7 @@ async function loadEntries() {
 </div>
 
 <script>
-const D = { belt:'', style:'', position:'', weakness:[], goal:'', freq:3 };
+const D = { belt:'', height:'', weight:'', style:'', position:'', weakness:[], goal:'', freq:3 };
 
 function startApp() {
   document.getElementById('landing').style.display = 'none';
@@ -758,16 +763,16 @@ function slideUpdate() {
   document.getElementById('freqVal').textContent = v + (v==1?' day':' days');
 }
 
-const REQ = ['belt','style','position',null,'goal'];
+const REQ = ['belt','height','style','position',null,'goal'];
 
 function next(i) {
   if (REQ[i] && !D[REQ[i]]) { alert('Please make a selection.'); return; }
-  if (i===3 && D.weakness.length===0) { alert('Pick at least one weakness.'); return; }
+  if (i===4 && D.weakness.length===0) { alert('Pick at least one weakness.'); return; }
   document.getElementById('s'+i).classList.remove('active');
   document.getElementById('s'+(i+1)).classList.add('active');
   document.getElementById('ps'+i).classList.replace('active','done');
   document.getElementById('ps'+(i+1)).classList.add('active');
-  document.getElementById('stepLabel').textContent = 'STEP '+(i+2)+' OF 5';
+  document.getElementById('stepLabel').textContent = 'STEP '+(i+2)+' OF 6';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -776,7 +781,7 @@ function back(i) {
   document.getElementById('s'+(i-1)).classList.add('active');
   document.getElementById('ps'+i).classList.remove('active');
   document.getElementById('ps'+(i-1)).classList.replace('done','active');
-  document.getElementById('stepLabel').textContent = 'STEP '+i+' OF 5';
+  document.getElementById('stepLabel').textContent = 'STEP '+i+' OF 6';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -799,6 +804,8 @@ async function generate() {
 
 Profile:
 - Belt: ${D.belt}
+- Height: ${D.height}
+- Weight: ${D.weight}
 - Style: ${D.style}
 - Favourite position: ${D.position}
 - Weaknesses: ${D.weakness.join(', ')}
@@ -900,13 +907,13 @@ async function submitEmail() {
 }
 
 function restart() {
-  Object.assign(D, {belt:'',style:'',position:'',weakness:[],goal:'',freq:3});
+  Object.assign(D, {belt:'',height:'',weight:'',style:'',position:'',weakness:[],goal:'',freq:3});
   document.querySelectorAll('.opt').forEach(b=>b.classList.remove('sel'));
   document.getElementById('freqSlider').value=3;
   document.getElementById('freqVal').textContent='3 days';
   document.querySelectorAll('.step').forEach((s,i)=>{s.classList.remove('active');if(i===0)s.classList.add('active');});
   document.querySelectorAll('.prog-seg').forEach((p,i)=>{p.classList.remove('active','done');if(i===0)p.classList.add('active');});
-  document.getElementById('stepLabel').textContent='STEP 1 OF 5';
+  document.getElementById('stepLabel').textContent='STEP 1 OF 6';
   document.getElementById('output').style.display='none';
   document.getElementById('landing').style.display='flex';
   document.getElementById('app').style.display='none';
