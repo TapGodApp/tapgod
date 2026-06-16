@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tapgod-v1';
+const CACHE_NAME = 'tapgod-v2';
 const urlsToCache = ['/'];
 
 self.addEventListener('install', event => {
