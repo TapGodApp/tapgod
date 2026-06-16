@@ -32,29 +32,40 @@ function toggleVoiceNote() {
 }
 
 function startVoiceNote() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-GB';
-  const micBtn = document.getElementById('micBtn');
-  const textarea = document.getElementById('journalInput');
-  recognition.onstart = () => {
-    isRecording = true;
-    micBtn.textContent = '⏹ STOP RECORDING';
-    micBtn.classList.add('recording');
-    textarea.placeholder = 'Listening...';
-  };
-  recognition.onresult = (event) => {
-    let transcript = '';
-    for (let i = 0; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript;
-    }
-    textarea.value = transcript;
-  };
-  recognition.onerror = () => { stopVoiceNote(); };
-  recognition.onend = () => { stopVoiceNote(); };
-  recognition.start();
+  // Request mic permission explicitly first
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(() => {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert('Voice notes not supported on this browser. Try Chrome or Safari.');
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-GB';
+      const micBtn = document.getElementById('micBtn');
+      const textarea = document.getElementById('journalInput');
+      recognition.onstart = () => {
+        isRecording = true;
+        micBtn.textContent = '⏹ STOP RECORDING';
+        micBtn.classList.add('recording');
+        textarea.placeholder = 'Listening...';
+      };
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        textarea.value = transcript;
+      };
+      recognition.onerror = () => { stopVoiceNote(); };
+      recognition.onend = () => { stopVoiceNote(); };
+      recognition.start();
+    })
+    .catch(() => {
+      alert('Microphone access denied. Please allow microphone access in your browser settings and try again.');
+    });
 }
 
 function stopVoiceNote() {
