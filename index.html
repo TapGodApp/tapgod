@@ -19,6 +19,53 @@ if ('serviceWorker' in navigator) {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ===== VOICE NOTE =====
+let recognition = null;
+let isRecording = false;
+
+function toggleVoiceNote() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Voice notes not supported on this browser. Try Chrome or Safari.');
+    return;
+  }
+  if (isRecording) { stopVoiceNote(); } else { startVoiceNote(); }
+}
+
+function startVoiceNote() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-GB';
+  const micBtn = document.getElementById('micBtn');
+  const textarea = document.getElementById('journalInput');
+  recognition.onstart = () => {
+    isRecording = true;
+    micBtn.textContent = '⏹ STOP RECORDING';
+    micBtn.classList.add('recording');
+    textarea.placeholder = 'Listening...';
+  };
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    textarea.value = transcript;
+  };
+  recognition.onerror = () => { stopVoiceNote(); };
+  recognition.onend = () => { stopVoiceNote(); };
+  recognition.start();
+}
+
+function stopVoiceNote() {
+  if (recognition) { recognition.stop(); recognition = null; }
+  isRecording = false;
+  const micBtn = document.getElementById('micBtn');
+  micBtn.textContent = '🎤 VOICE NOTE';
+  micBtn.classList.remove('recording');
+  document.getElementById('journalInput').placeholder = 'Drilled scissor sweep from closed guard...';
+}
+
 // ===== PWA INSTALL =====
 let deferredPrompt = null;
 
@@ -481,9 +528,13 @@ async function loadEntries() {
   .journal-textarea { width:100%; background:var(--card); border:1px solid var(--border); border-radius:0; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:17px; line-height:1.7; resize:none; min-height:160px; outline:none; padding:20px; box-sizing:border-box; transition:border-color 0.2s; }
   .journal-textarea:focus { border-color:var(--border2); }
   .journal-textarea::placeholder { color:var(--muted); font-size:16px; }
-  .journal-actions { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .journal-actions { display:flex; align-items:center; justify-content:space-between; margin-top:12px; gap:8px; flex-wrap:wrap; }
   .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 36px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; }
   .journal-submit-btn:hover { background:var(--gold2); transform:translateY(-1px); }
+  .mic-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; padding:14px 24px; background:transparent; color:var(--white); border:1px solid var(--border2); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:8px; }
+  .mic-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .mic-btn.recording { border-color:var(--red); color:var(--red); animation:micPulse 1s infinite; }
+  @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
   .journal-saving { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:2px; display:none; }
   .journal-divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
   .journal-divider-label { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:3px; color:var(--muted); white-space:nowrap; }
@@ -887,6 +938,7 @@ function restart() {
       <textarea class="journal-textarea" id="journalInput" placeholder="Drilled scissor sweep from closed guard. Coach showed me the hip bump setup first to create the reaction, then switch to scissor. Also worked on breaking posture — need to use both arms..."></textarea>
       <div class="journal-actions">
         <button class="journal-submit-btn" onclick="saveEntry()">⚡ SAVE + ANALYSE</button>
+        <button class="mic-btn" id="micBtn" onclick="toggleVoiceNote()">🎤 VOICE NOTE</button>
         <div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
       </div>
     </div>
