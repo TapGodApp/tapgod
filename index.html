@@ -328,6 +328,83 @@ async function loadEntries() {
       ${e.ai_summary ? `<div class="entry-summary-wrap"><div class="entry-summary-icon">→</div><div class="entry-summary">${e.ai_summary}</div></div>` : ''}
     </div>`;
   }).join('');
+
+  // Trigger pattern insights every 3 entries (not every single save) — patterns build over multiple sessions, not one
+  if (entries.length >= 3 && entries.length % 3 === 0) {
+    loadPatternInsights(false, entries);
+  } else if (entries.length >= 3) {
+    // Still show the panel using cached insight if we have one, just don't re-call the AI
+    const cacheKey = 'tapgod_insights_' + currentUser.id;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      document.getElementById('insightsPanel').style.display = 'block';
+      document.getElementById('insightsText').textContent = JSON.parse(cached).text;
+    } else {
+      // No cache yet and not on a multiple of 3 — run it once now so the feature isn't hidden until entry 6
+      loadPatternInsights(false, entries);
+    }
+  } else {
+    document.getElementById('insightsPanel').style.display = 'none';
+  }
+}
+
+async function loadPatternInsights(forceRefresh, entriesParam) {
+  const panel = document.getElementById('insightsPanel');
+  const textEl = document.getElementById('insightsText');
+
+  let entries = entriesParam;
+  if (!entries) {
+    const { data } = await db
+      .from('journal_entries')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', {ascending: false})
+      .limit(10);
+    entries = data || [];
+  }
+
+  if (entries.length < 3) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Use cache unless forced refresh
+  const cacheKey = 'tapgod_insights_' + currentUser.id;
+  if (!forceRefresh) {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const parsedCache = JSON.parse(cached);
+      if (parsedCache.entryCount === entries.length) {
+        panel.style.display = 'block';
+        textEl.textContent = parsedCache.text;
+        return;
+      }
+    }
+  }
+
+  panel.style.display = 'block';
+  textEl.innerHTML = '<span class="insights-loading">ANALYSING YOUR LAST ' + Math.min(entries.length, 10) + ' SESSIONS...</span>';
+
+  const recent = entries.slice(0, 10);
+  const sessionsText = recent.map((e, i) => `Session ${i+1} (${e.category || 'GENERAL'}): ${e.entry}`).join('\n\n');
+
+  const prompt = 'You are an elite BJJ coach reviewing a student\'s recent training journal entries. Find genuine patterns — recurring weaknesses, techniques they keep mentioning, gaps in their game, or progress over time. Respond with ONLY a JSON object (no markdown, no backticks): {"insight": "2-3 sentences identifying a real pattern across these sessions and one specific actionable recommendation. Be direct and specific, reference actual techniques or positions mentioned, not generic advice."} Sessions:\n\n' + sessionsText;
+
+  try {
+    const res = await fetch('/.netlify/functions/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: prompt})
+    });
+    const data = await res.json();
+    const aiText = data.content[0].text;
+    const parsed = JSON.parse(aiText.replace(/```json|```/g,'').trim());
+    const insightText = parsed.insight || 'Keep logging sessions to unlock deeper pattern analysis.';
+    textEl.textContent = insightText;
+    localStorage.setItem(cacheKey, JSON.stringify({ text: insightText, entryCount: entries.length }));
+  } catch(e) {
+    textEl.textContent = 'Unable to analyse patterns right now. Tap refresh to try again.';
+  }
 }
 
 </script>
@@ -454,6 +531,17 @@ async function loadEntries() {
   .error-box { background: rgba(196,58,42,0.1); border: 1px solid var(--red); padding: 16px 20px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #e07060; margin-bottom: 16px; }
   .footer-strip { text-align: center; padding: 24px; border-top: 1px solid var(--border); margin-top: 48px; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; }
   .footer-strip span { color: var(--gold); }
+
+  /* ========== PATTERN INSIGHTS ========== */
+  .insights-panel { background:var(--card); border:1px solid var(--gold); border-left:3px solid var(--gold); padding:24px; margin-bottom:32px; display:none; }
+  .insights-header { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .insights-icon { font-size:18px; }
+  .insights-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:var(--gold); }
+  .insights-subtitle { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:2px; margin-bottom:16px; }
+  .insights-text { font-size:15px; color:#aac4d2; line-height:1.7; }
+  .insights-loading { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--gold); letter-spacing:2px; padding:12px 0; }
+  .insights-refresh { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; cursor:pointer; text-decoration:underline; margin-top:14px; display:inline-block; }
+  .insights-refresh:hover { color:var(--gold); }
 
   /* ========== PWA INSTALL BANNER ========== */
   #installBanner {
@@ -977,6 +1065,16 @@ function restart() {
         <button class="mic-btn" id="micBtn" onclick="toggleVoiceNote()">🎤 VOICE NOTE</button>
         <div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
       </div>
+    </div>
+
+    <div id="insightsPanel" class="insights-panel">
+      <div class="insights-header">
+        <span class="insights-icon">🧠</span>
+        <span class="insights-title">YOUR PATTERNS</span>
+      </div>
+      <div class="insights-subtitle">AI ANALYSIS ACROSS YOUR RECENT SESSIONS</div>
+      <div class="insights-text" id="insightsText"></div>
+      <span class="insights-refresh" onclick="loadPatternInsights(true)">↻ REFRESH ANALYSIS</span>
     </div>
 
     <div class="journal-divider">
