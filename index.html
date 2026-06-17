@@ -22,59 +22,77 @@ if ('serviceWorker' in navigator) {
 // ===== VOICE NOTE =====
 let recognition = null;
 let isRecording = false;
+let micStream = null;
 
 function toggleVoiceNote() {
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    alert('Voice notes not supported on this browser. Try Chrome or Safari.');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Voice notes not supported on this browser. Try Chrome.');
     return;
   }
   if (isRecording) { stopVoiceNote(); } else { startVoiceNote(); }
 }
 
 function startVoiceNote() {
-  // Request mic permission explicitly first
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(() => {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        alert('Voice notes not supported on this browser. Try Chrome or Safari.');
-        return;
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById('micBtn');
+  const textarea = document.getElementById('journalInput');
+  const existingText = textarea.value;
+  let finalTranscript = existingText ? existingText + ' ' : '';
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-GB';
+
+  recognition.onstart = () => {
+    isRecording = true;
+    micBtn.textContent = '⏹ STOP RECORDING';
+    micBtn.classList.add('recording');
+  };
+
+  recognition.onresult = (event) => {
+    let interimTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript + ' ';
+      } else {
+        interimTranscript += event.results[i][0].transcript;
       }
-      recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-GB';
-      const micBtn = document.getElementById('micBtn');
-      const textarea = document.getElementById('journalInput');
-      recognition.onstart = () => {
-        isRecording = true;
-        micBtn.textContent = '⏹ STOP RECORDING';
-        micBtn.classList.add('recording');
-        textarea.placeholder = 'Listening...';
-      };
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        textarea.value = transcript;
-      };
-      recognition.onerror = () => { stopVoiceNote(); };
-      recognition.onend = () => { stopVoiceNote(); };
-      recognition.start();
-    })
-    .catch(() => {
-      alert('Microphone access denied. Please allow microphone access in your browser settings and try again.');
-    });
+    }
+    textarea.value = finalTranscript + interimTranscript;
+  };
+
+  recognition.onerror = (event) => {
+    console.log('Speech recognition error:', event.error);
+    if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+      alert('Microphone access denied. Please allow microphone access in your browser settings.');
+    }
+    isRecording = false;
+    micBtn.textContent = '🎤 VOICE NOTE';
+    micBtn.classList.remove('recording');
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    micBtn.textContent = '🎤 VOICE NOTE';
+    micBtn.classList.remove('recording');
+    // Lock in the final transcript text in case onresult missed the last bit
+    textarea.value = finalTranscript.trim();
+  };
+
+  try {
+    recognition.start();
+  } catch (e) {
+    console.log('Recognition start error:', e);
+    alert('Could not start voice recording. Please try again.');
+  }
 }
 
 function stopVoiceNote() {
-  if (recognition) { recognition.stop(); recognition = null; }
-  isRecording = false;
-  const micBtn = document.getElementById('micBtn');
-  micBtn.textContent = '🎤 VOICE NOTE';
-  micBtn.classList.remove('recording');
-  document.getElementById('journalInput').placeholder = 'Drilled scissor sweep from closed guard...';
+  if (recognition) {
+    recognition.stop();
+  }
 }
 
 // ===== PWA INSTALL =====
