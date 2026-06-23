@@ -19,111 +19,131 @@ if ('serviceWorker' in navigator) {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ===== VOICE NOTE =====
-let recognition = null;
+// ===== VOICE NOTE — MediaRecorder + Whisper =====
+let mediaRecorder = null;
+let audioChunks = [];
 let isRecording = false;
-let finalTranscript = '';
-let recognitionStopped = false;
+let recordingStream = null;
 
 function toggleVoiceNote() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    alert('Voice notes not supported on this browser. Try Chrome.');
-    return;
-  }
-  if (isRecording) { 
-    recognitionStopped = true;
-    stopVoiceNote(); 
-  } else { 
-    startVoiceNote(); 
+  if (isRecording) {
+    stopVoiceNote();
+  } else {
+    startVoiceNote();
   }
 }
 
-function startVoiceNote() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+async function startVoiceNote() {
   const micBtn = document.getElementById('micBtn');
-  const textarea = document.getElementById('journalInput');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('Voice recording is not supported on this browser. Please use Chrome on Android or Safari on iPhone.');
+    return;
+  }
   
-  recognitionStopped = false;
-  finalTranscript = textarea.value ? textarea.value + ' ' : '';
-
-  function createRecognition() {
-    const r = new SpeechRecognition();
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = 'en-GB';
-
-    r.onstart = () => {
-      isRecording = true;
-      micBtn.textContent = '⏹ STOP RECORDING';
-      micBtn.classList.add('recording');
-    };
-
-    r.onresult = (event) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
-        } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-      textarea.value = finalTranscript + interim;
-    };
-
-    r.onerror = (event) => {
-      if (event.error === 'not-allowed') {
-        alert('Microphone access denied. Please allow microphone access in your browser settings.');
-        recognitionStopped = true;
-        stopVoiceNote();
-      }
-      // For other errors, let onend handle the restart
-    };
-
-    r.onend = () => {
-      // Lock in whatever we have
-      textarea.value = finalTranscript.trim();
-      
-      // Auto-restart if user hasn't tapped stop — Android stops recognition after silence
-      if (!recognitionStopped && isRecording) {
-        try {
-          recognition = createRecognition();
-          recognition.start();
-        } catch(e) {
-          stopVoiceNote();
-        }
-      } else {
-        isRecording = false;
-        micBtn.textContent = '🎤 VOICE NOTE';
-        micBtn.classList.remove('recording');
-      }
-    };
-
-    return r;
-  }
-
-  recognition = createRecognition();
   try {
-    recognition.start();
+    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch(e) {
-    alert('Could not start voice recording. Please try again.');
+    console.error('getUserMedia error:', e.name, e.message);
+    if (e.name === 'NotAllowedError') {
+      alert('Microphone permission denied. Go to Chrome Settings → Site Settings → tapgod.app → Microphone → Allow.');
+    } else if (e.name === 'NotFoundError') {
+      alert('No microphone found on this device.');
+    } else if (e.name === 'NotSupportedError') {
+      alert('Your browser does not support microphone recording. Please use Chrome.');
+    } else {
+      alert('Microphone error: ' + e.name + ' — ' + e.message);
+    }
+    return;
   }
+
+  // Samsung Android handles mp4 more reliably than webm
+  let mimeType = '';
+  if (MediaRecorder.isTypeSupported('audio/mp4')) {
+    mimeType = 'audio/mp4';
+  } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+    mimeType = 'audio/webm;codecs=opus';
+  } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+    mimeType = 'audio/webm';
+  } else {
+    alert('Your browser does not support audio recording. Please try updating Chrome.');
+    recordingStream.getTracks().forEach(t => t.stop());
+    return;
+  }
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(recordingStream, { mimeType });
+
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) {
+      audioChunks.push(event.data);
+    }
+  };
+
+  mediaRecorder.onstop = async () => {
+    // Stop all tracks to release mic
+    recordingStream.getTracks().forEach(track => track.stop());
+    
+    const audioBlob = new Blob(audioChunks, { type: mimeType });
+    
+    // Minimum length check — avoid empty recordings
+    if (audioBlob.size < 1000) {
+      alert('No audio captured. Chunks: ' + audioChunks.length + ', Size: ' + audioBlob.size + ', Codec: ' + mimeType);
+      document.getElementById('savingMsg').style.display = 'none';
+      micBtn.textContent = '🎤 VOICE NOTE';
+      micBtn.classList.remove('recording');
+      isRecording = false;
+      return;
+    }
+
+    // Show transcribing message
+    document.getElementById('savingMsg').textContent = 'TRANSCRIBING...';
+    document.getElementById('savingMsg').style.display = 'block';
+
+    try {
+      // Convert blob to base64
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(audioBlob);
+      });
+
+      // Send to Netlify transcribe function
+      const response = await fetch('/.netlify/functions/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, mimeType })
+      });
+
+      const data = await response.json();
+      
+      if (data.transcript) {
+        const textarea = document.getElementById('journalInput');
+        const existing = textarea.value.trim();
+        textarea.value = existing ? existing + ' ' + data.transcript : data.transcript;
+      } else {
+        alert('Could not transcribe audio. Please try again or type your entry.');
+      }
+    } catch(e) {
+      alert('Transcription failed. Please check your connection and try again.');
+    }
+
+    document.getElementById('savingMsg').style.display = 'none';
+    document.getElementById('savingMsg').textContent = 'ANALYSING YOUR SESSION...';
+    micBtn.textContent = '🎤 VOICE NOTE';
+    micBtn.classList.remove('recording');
+    isRecording = false;
+  };
+
+  mediaRecorder.start(100); // collect data every 100ms
+  isRecording = true;
+  micBtn.textContent = '⏹ STOP RECORDING';
+  micBtn.classList.add('recording');
 }
 
 function stopVoiceNote() {
-  recognitionStopped = true;
-  if (recognition) {
-    recognition.stop();
-    recognition = null;
-  }
-  isRecording = false;
-  const micBtn = document.getElementById('micBtn');
-  micBtn.textContent = '🎤 VOICE NOTE';
-  micBtn.classList.remove('recording');
-  // Make sure final transcript is locked into textarea
-  const textarea = document.getElementById('journalInput');
-  if (finalTranscript.trim()) {
-    textarea.value = finalTranscript.trim();
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
   }
 }
 
@@ -684,10 +704,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .journal-actions { display:flex; align-items:center; justify-content:space-between; margin-top:12px; gap:8px; flex-wrap:wrap; }
   .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 36px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; }
   .journal-submit-btn:hover { background:var(--gold2); transform:translateY(-1px); }
-  .mic-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:2px; padding:14px 24px; background:transparent; color:var(--white); border:1px solid var(--border2); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:8px; }
-  .mic-btn:hover { border-color:var(--gold); color:var(--gold); }
-  .mic-btn.recording { border-color:var(--red); color:var(--red); animation:micPulse 1s infinite; }
-  @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
   .journal-saving { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:2px; display:none; }
   .journal-divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
   .journal-divider-label { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:3px; color:var(--muted); white-space:nowrap; }
@@ -1094,8 +1111,7 @@ function restart() {
       <textarea class="journal-textarea" id="journalInput" placeholder="Drilled scissor sweep from closed guard. Coach showed me the hip bump setup first to create the reaction, then switch to scissor. Also worked on breaking posture — need to use both arms..."></textarea>
       <div class="journal-actions">
         <button class="journal-submit-btn" onclick="saveEntry()">⚡ SAVE + ANALYSE</button>
-        <button class="mic-btn" id="micBtn" onclick="toggleVoiceNote()">🎤 VOICE NOTE</button>
-        <div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
+<div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
       </div>
     </div>
 
