@@ -86,9 +86,11 @@ async function startVoiceNote() {
     
     const audioBlob = new Blob(audioChunks, { type: mimeType });
     
-    // Minimum length check — avoid empty recordings
-    if (audioBlob.size < 1000) {
-      alert('No audio captured. Chunks: ' + audioChunks.length + ', Size: ' + audioBlob.size + ', Codec: ' + mimeType);
+    // Debug — show what we captured
+    alert('Captured: ' + audioChunks.length + ' chunks, ' + audioBlob.size + ' bytes, codec: ' + mimeType);
+    
+    // Minimum length check
+    if (audioBlob.size < 100) {
       document.getElementById('savingMsg').style.display = 'none';
       micBtn.textContent = '🎤 VOICE NOTE';
       micBtn.classList.remove('recording');
