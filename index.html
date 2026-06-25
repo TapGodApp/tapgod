@@ -759,6 +759,107 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     <div class="mike-avatar">M</div>
     <p class="mike-text"><strong>Built by Mike</strong> — 4-year blue belt from Bristol. I kept forgetting everything I learned in class. So I built this. Now I don't.</p>
   </div>
+
+  <!-- FEATURES SHOWCASE -->
+  <div style="max-width:500px;margin:0 auto;padding:40px 24px 60px;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:4px;text-align:center;margin-bottom:8px;">WHAT'S INSIDE</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;text-align:center;margin-bottom:32px;color:var(--white);">YOUR COMPLETE<br><span style="color:var(--gold);">BJJ PLATFORM</span></div>
+
+    <!-- Live features -->
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+
+      <div onclick="startApp()" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🎯 AI GAME PLAN BUILDER</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">6 questions. Personalised to your body and belt.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">FREE</div>
+        </div>
+      </div>
+
+      <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">📓 SESSION JOURNAL</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Log every class. Never forget what you learned.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
+      <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🧠 AI PATTERN RECOGNITION</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Spots trends across your sessions. Your AI coach.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
+      <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🎤 VOICE NOTES</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Speak after training. AI transcribes and categorises.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Coming soon -->
+    <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:12px;">COMING SOON</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">🥋 DRILL TRACKER</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Log reps. Track what you're drilling week to week.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">⚖️ WEIGHT TRACKER</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Monitor weight for competition prep.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">🎒 KIT BAG & GEAR</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Curated gear recommendations for your game.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">🏆 COMPETITION PREP</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Full tournament preparation toolkit.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="text-align:center;margin-top:32px;">
+      <button class="cta-btn" onclick="startApp()" style="width:100%;max-width:400px;">BUILD MY FREE GAME PLAN →</button>
+    </div>
+  </div>
 </div>
 
 <div id="app">
