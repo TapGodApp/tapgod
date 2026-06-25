@@ -7,41 +7,55 @@ exports.handler = async function(event) {
     const { audio, mimeType } = JSON.parse(event.body);
 
     if (!audio) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'No audio data provided' }) };
+      return { statusCode: 400, body: JSON.stringify({ error: 'No audio data' }) };
     }
 
-    // Convert base64 to buffer
     const audioBuffer = Buffer.from(audio, 'base64');
-    
-    // Determine file extension from mime type
-    const ext = mimeType && mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const ext = mimeType && mimeType.includes('mp4') ? 'm4a' : 'webm';
+    const filename = `recording.${ext}`;
 
-    // Create form data for OpenAI Whisper
-    const FormData = require('form-data');
-    const formData = new FormData();
-    formData.append('file', audioBuffer, {
-      filename: `recording.${ext}`,
-      contentType: mimeType || 'audio/webm',
-    });
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'en');
+    // Build multipart form data manually — no external dependencies
+    const boundary = '----FormBoundary' + Math.random().toString(36).substr(2);
+    
+    const header = Buffer.from(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+      `Content-Type: ${mimeType || 'audio/mp4'}\r\n\r\n`
+    );
+    
+    const modelField = Buffer.from(
+      `\r\n--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="model"\r\n\r\n` +
+      `whisper-1`
+    );
+    
+    const langField = Buffer.from(
+      `\r\n--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="language"\r\n\r\n` +
+      `en`
+    );
+    
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+    
+    const body = Buffer.concat([header, audioBuffer, modelField, langField, footer]);
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        ...formData.getHeaders()
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length.toString()
       },
-      body: formData
+      body: body
     });
 
+    const result = await response.json();
+    
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Whisper API error:', error);
-      return { statusCode: 500, body: JSON.stringify({ error: 'Transcription failed' }) };
+      console.error('Whisper error:', JSON.stringify(result));
+      return { statusCode: 500, body: JSON.stringify({ error: result.error?.message || 'Transcription failed' }) };
     }
 
-    const result = await response.json();
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -49,7 +63,7 @@ exports.handler = async function(event) {
     };
 
   } catch (err) {
-    console.error('Transcribe function error:', err.message);
+    console.error('Transcribe error:', err.message);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
