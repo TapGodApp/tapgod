@@ -86,13 +86,10 @@ async function startVoiceNote() {
     
     const audioBlob = new Blob(audioChunks, { type: mimeType });
     
-    // Debug — show what we captured
-    alert('Captured: ' + audioChunks.length + ' chunks, ' + audioBlob.size + ' bytes, codec: ' + mimeType);
-    
     // Minimum length check
     if (audioBlob.size < 100) {
       document.getElementById('savingMsg').style.display = 'none';
-      micBtn.textContent = '🎤 VOICE NOTE';
+      micBtn.textContent = '🎤 VOICE';
       micBtn.classList.remove('recording');
       isRecording = false;
       return;
@@ -132,7 +129,7 @@ async function startVoiceNote() {
 
     document.getElementById('savingMsg').style.display = 'none';
     document.getElementById('savingMsg').textContent = 'ANALYSING YOUR SESSION...';
-    micBtn.textContent = '🎤 VOICE NOTE';
+    micBtn.textContent = '🎤 VOICE';
     micBtn.classList.remove('recording');
     isRecording = false;
   };
@@ -703,9 +700,13 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .journal-textarea { width:100%; background:var(--card); border:1px solid var(--border); border-radius:0; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:17px; line-height:1.7; resize:none; min-height:160px; outline:none; padding:20px; box-sizing:border-box; transition:border-color 0.2s; }
   .journal-textarea:focus { border-color:var(--border2); }
   .journal-textarea::placeholder { color:var(--muted); font-size:16px; }
-  .journal-actions { display:flex; align-items:center; justify-content:space-between; margin-top:12px; gap:8px; flex-wrap:wrap; }
-  .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 36px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; }
-  .journal-submit-btn:hover { background:var(--gold2); transform:translateY(-1px); }
+  .journal-actions { display:flex; align-items:stretch; gap:8px; margin-top:12px; }
+  .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 24px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; flex:2; }
+  .journal-submit-btn:hover { background:var(--gold2); }
+  .mic-btn { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; padding:14px 16px; background:transparent; color:var(--white); border:1px solid var(--border2); cursor:pointer; transition:all 0.15s; flex:1; display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; }
+  .mic-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .mic-btn.recording { border-color:#e05555; color:#e05555; animation:micPulse 1s infinite; }
+  @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
   .journal-saving { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:2px; display:none; }
   .journal-divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
@@ -1113,7 +1114,7 @@ function restart() {
       <textarea class="journal-textarea" id="journalInput" placeholder="Drilled scissor sweep from closed guard. Coach showed me the hip bump setup first to create the reaction, then switch to scissor. Also worked on breaking posture — need to use both arms..."></textarea>
       <div class="journal-actions">
         <button class="journal-submit-btn" onclick="saveEntry()">⚡ SAVE + ANALYSE</button>
-        <button class="mic-btn" id="micBtn" onclick="toggleVoiceNote()">🎤 VOICE NOTE</button>
+        <button class="mic-btn" id="micBtn" onclick="toggleVoiceNote()">🎤 VOICE</button>
         <div class="journal-saving" id="savingMsg">ANALYSING YOUR SESSION...</div>
       </div>
     </div>
