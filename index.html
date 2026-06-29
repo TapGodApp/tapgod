@@ -250,19 +250,20 @@ async function checkSubscription() {
       .from('subscriptions')
       .select('status')
       .eq('user_id', currentUser.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trialing'])
       .single();
     
     if (data && !error) {
-      // Has active subscription — let them in
       document.getElementById('journal').style.display = 'block';
       loadEntries();
     } else {
-      // No subscription or any error — show upgrade wall
+      // Set dynamic Stripe link with user ID and email
+      const stripeBase = 'https://buy.stripe.com/00w9AS9uw2hG4617AR2sM00';
+      const stripeLink = `${stripeBase}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email)}`;
+      document.getElementById('stripeCheckoutBtn').href = stripeLink;
       document.getElementById('upgradeWall').style.display = 'flex';
     }
   } catch(e) {
-    // Any exception — show upgrade wall, never bypass paywall
     document.getElementById('upgradeWall').style.display = 'flex';
   }
 }
@@ -1273,7 +1274,7 @@ function restart() {
       </div>
     </div>
 
-    <a href="https://buy.stripe.com/00w9AS9uw2hG4617AR2sM00" target="_blank" style="display:block;font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;padding:18px 48px;background:var(--gold);color:var(--bg);text-decoration:none;margin-bottom:16px;transition:all 0.2s;">START 7-DAY FREE TRIAL →</a>
+    <a id="stripeCheckoutBtn" href="https://buy.stripe.com/00w9AS9uw2hG4617AR2sM00" target="_blank" style="display:block;font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;padding:18px 48px;background:var(--gold);color:var(--bg);text-decoration:none;margin-bottom:16px;transition:all 0.2s;">START 7-DAY FREE TRIAL →</a>
     <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:24px;">£5/month after trial • Cancel anytime</div>
     <button onclick="showSection('landing')" style="background:transparent;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;text-decoration:underline;">← Back to game plan builder</button>
   </div>
