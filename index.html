@@ -408,9 +408,10 @@ async function loadEntries() {
 
   list.innerHTML = entries.map(e => {
     const date = new Date(e.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    const catClass = 'cat-' + (e.category || 'GENERAL').toLowerCase().replace(/\s+/g,'-');
     return `<div class="entry-card">
       <div class="entry-card-top">
-        <div class="entry-category">${e.category || 'GENERAL'}</div>
+        <div class="entry-category ${catClass}">${e.category || 'GENERAL'}</div>
         <div class="entry-date">${date}</div>
       </div>
       <div class="entry-body">
@@ -759,7 +760,20 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .journal-divider-line { flex:1; height:1px; background:var(--border); }
   .entry-card { background:var(--card); border:1px solid var(--border); padding:0; margin-bottom:12px; animation:fadeUp 0.3s ease; overflow:hidden; }
   .entry-card-top { padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-  .entry-category { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--gold); background:var(--gold-dim); padding:4px 10px; letter-spacing:3px; text-transform:uppercase; border:1px solid rgba(212,168,67,0.2); }
+  .entry-category { font-family:'Share Tech Mono',monospace; font-size:9px; padding:4px 10px; letter-spacing:3px; text-transform:uppercase; border:1px solid; }
+  
+  .cat-guard-game { color:#4ea5ff; background:rgba(78,165,255,0.1); border-color:rgba(78,165,255,0.3); }
+  .cat-passing { color:#2ecc71; background:rgba(46,204,113,0.1); border-color:rgba(46,204,113,0.3); }
+  .cat-mount { color:#e74c3c; background:rgba(231,76,60,0.1); border-color:rgba(231,76,60,0.3); }
+  .cat-back-control { color:#9b59b6; background:rgba(155,89,182,0.1); border-color:rgba(155,89,182,0.3); }
+  .cat-side-control { color:#f39c12; background:rgba(243,156,18,0.1); border-color:rgba(243,156,18,0.3); }
+  .cat-takedowns { color:#e67e22; background:rgba(230,126,34,0.1); border-color:rgba(230,126,34,0.3); }
+  .cat-leg-locks { color:#16a085; background:rgba(22,160,133,0.1); border-color:rgba(22,160,133,0.3); }
+  .cat-submissions { color:#c0392b; background:rgba(192,57,43,0.1); border-color:rgba(192,57,43,0.3); }
+  .cat-escapes { color:#3498db; background:rgba(52,152,219,0.1); border-color:rgba(52,152,219,0.3); }
+  .cat-concepts { color:#d4a843; background:rgba(212,168,67,0.1); border-color:rgba(212,168,67,0.3); }
+  .cat-competition-prep { color:#1abc9c; background:rgba(26,188,156,0.1); border-color:rgba(26,188,156,0.3); }
+  .cat-general { color:var(--muted); background:var(--dim); border-color:var(--border); }
   .entry-date { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; }
   .entry-body { padding:16px 20px; }
   .entry-text { font-size:15px; color:#8aadbd; line-height:1.7; margin-bottom:0; }
