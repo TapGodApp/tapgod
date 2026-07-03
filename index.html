@@ -362,6 +362,39 @@ async function loadEntries() {
     entries = data || [];
   }
 
+  // Calculate streak and stats
+  const totalCount = entries.length;
+  const weekCount = entries.filter(e => {
+    const entryDate = new Date(e.created_at);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return entryDate > weekAgo;
+  }).length;
+
+  let streak = 0;
+  if (entries.length > 0) {
+    const sortedByDate = [...entries].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    let checkDate = new Date();
+    checkDate.setHours(0,0,0,0);
+    
+    for (let e of sortedByDate) {
+      const entryDate = new Date(e.created_at);
+      entryDate.setHours(0,0,0,0);
+      
+      const diff = Math.floor((checkDate - entryDate) / (1000*60*60*24));
+      if (diff <= 1) {
+        streak++;
+        checkDate = entryDate;
+      } else {
+        break;
+      }
+    }
+  }
+
+  document.getElementById('streakCount').textContent = streak;
+  document.getElementById('weekCount').textContent = weekCount;
+  document.getElementById('totalCount').textContent = totalCount;
+
   if (entries.length === 0) {
     list.innerHTML = '<div class="empty-state">NO SESSIONS LOGGED YET — YOUR JOURNEY STARTS HERE</div>';
     return;
@@ -585,6 +618,11 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .footer-strip span { color: var(--gold); }
 
   /* ========== PATTERN INSIGHTS ========== */
+  .streak-panel { display: flex; gap: 24px; justify-content: center; padding: 32px 24px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 32px; }
+  .streak-stat { text-align: center; flex: 1; }
+  .streak-num { font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: var(--gold); line-height: 1; margin-bottom: 6px; }
+  .streak-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+
   .insights-panel { background:var(--card); border:1px solid var(--gold); border-left:3px solid var(--gold); padding:24px; margin-bottom:32px; display:none; }
   .insights-header { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   .insights-icon { font-size:18px; }
@@ -1209,6 +1247,21 @@ function restart() {
       <div class="journal-hero-label">Session Log</div>
       <div class="journal-hero-title">WHAT DID YOU<br>LEARN TODAY?</div>
       <div class="journal-hero-sub">Write anything — techniques, positions, what clicked, what didn't. AI organises it for you.</div>
+    </div>
+
+    <div id="streakPanel" class="streak-panel">
+      <div class="streak-stat">
+        <div class="streak-num" id="streakCount">0</div>
+        <div class="streak-label">Session Streak</div>
+      </div>
+      <div class="streak-stat">
+        <div class="streak-num" id="weekCount">0</div>
+        <div class="streak-label">This Week</div>
+      </div>
+      <div class="streak-stat">
+        <div class="streak-num" id="totalCount">0</div>
+        <div class="streak-label">Total Sessions</div>
+      </div>
     </div>
 
     <div class="journal-input-wrap">
