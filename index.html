@@ -373,14 +373,20 @@ async function loadEntries() {
 
   let streak = 0;
   if (entries.length > 0) {
-    const sortedByDate = [...entries].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    // Get unique dates
+    const uniqueDates = new Set();
+    entries.forEach(e => {
+      const entryDate = new Date(e.created_at);
+      entryDate.setHours(0,0,0,0);
+      uniqueDates.add(entryDate.getTime());
+    });
+    
+    const sortedDates = Array.from(uniqueDates).sort((a,b) => b - a);
     let checkDate = new Date();
     checkDate.setHours(0,0,0,0);
     
-    for (let e of sortedByDate) {
-      const entryDate = new Date(e.created_at);
-      entryDate.setHours(0,0,0,0);
-      
+    for (let dateTime of sortedDates) {
+      const entryDate = new Date(dateTime);
       const diff = Math.floor((checkDate - entryDate) / (1000*60*60*24));
       if (diff <= 1) {
         streak++;
