@@ -13,9 +13,25 @@
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available — show banner
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#d4a843;color:#060809;padding:16px;text-align:center;font-family:Share Tech Mono,monospace;font-size:14px;z-index:10000;';
+            banner.innerHTML = 'New version available — <a href="javascript:location.reload()" style="color:#060809;text-decoration:underline;font-weight:bold;cursor:pointer;">Refresh now</a>';
+            document.body.appendChild(banner);
+          }
+        });
+      });
+      // Check for updates every hour
+      setInterval(() => reg.update(), 3600000);
+    });
   });
 }
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
