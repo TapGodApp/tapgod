@@ -300,20 +300,31 @@ async function handleAuth() {
   
   msg.textContent = 'SENDING YOUR LOGIN LINK...';
   
-  const { error } = await db.auth.signInWithOtp({ 
-    email,
-    options: {
-      emailRedirectTo: 'https://tapgod.app'
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const { error } = await db.auth.signInWithOtp({ 
+      email,
+      options: {
+        emailRedirectTo: 'https://tapgod.app'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (error) {
+      console.error('Auth error:', error);
+      msg.textContent = '❌ ' + (error.message || 'Email failed. Try again.');
+      return;
     }
-  });
-  
-  if (error) {
-    msg.textContent = error.message;
-    return;
+    
+    msg.textContent = '✓ CHECK YOUR EMAIL — CLICK THE LINK TO LOGIN';
+    document.getElementById('authEmail').value = '';
+  } catch(e) {
+    console.error('Auth exception:', e);
+    msg.textContent = '❌ Network error. Check connection and try again.';
   }
-  
-  msg.textContent = '✓ CHECK YOUR EMAIL — CLICK THE LINK TO LOGIN';
-  document.getElementById('authEmail').value = '';
 }
 
 async function handleLogout() {
