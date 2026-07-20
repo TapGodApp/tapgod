@@ -12,16 +12,27 @@
 <meta name="apple-mobile-web-app-title" content="TAPGOD">
 <script>
 if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  // When the new service worker takes control, the page MUST reload —
+  // otherwise old JS keeps running against new cached files, causing
+  // broken/inconsistent behaviour that looks like "the app is buggy".
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(reg => {
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version available — show banner
+            // New version available — show banner (reload happens automatically
+            // via controllerchange above once the new worker activates)
             const banner = document.createElement('div');
             banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#d4a843;color:#060809;padding:16px;text-align:center;font-family:Share Tech Mono,monospace;font-size:14px;z-index:10000;';
-            banner.innerHTML = 'New version available — <a href="javascript:location.reload()" style="color:#060809;text-decoration:underline;font-weight:bold;cursor:pointer;">Refresh now</a>';
+            banner.textContent = 'Updating to the latest version...';
             document.body.appendChild(banner);
           }
         });
@@ -214,45 +225,33 @@ let db = null;
 let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+  db = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+    auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+  });
   
-  // Check for magic link token in URL hash
-  const hash = window.location.hash.slice(1);
-  if (hash.includes('access_token')) {
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    
-    if (accessToken && refreshToken) {
-      try {
-        const { data, error } = await db.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-        
-        if (!error && data.user) {
-          currentUser = data.user;
-          window.history.replaceState({}, document.title, window.location.pathname);
-          updateAuthUI();
-          showSection('journal');
-          checkSubscription();
-        }
-      } catch(e) {
-        console.error('Magic link failed:', e);
-      }
-    }
-  } else {
-    // Normal session check
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      updateAuthUI();
+  // Supabase auto-detects magic link tokens (both hash and PKCE code) on client creation.
+  // getSession() below will pick up the session it just detected from the URL.
+  const { data: { session }, error } = await db.auth.getSession();
+  console.log('Initial session check:', session ? session.user.email : 'no session', error || '');
+  
+  if (session) {
+    currentUser = session.user;
+    updateAuthUI();
+    // If we landed here via magic link (URL had auth params), clean URL and go to journal
+    if (window.location.hash.includes('access_token') || window.location.search.includes('code=')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showSection('journal');
     }
   }
   
-  db.auth.onAuthStateChange((_event, session) => {
+  db.auth.onAuthStateChange((event, session) => {
+    console.log('Auth state changed:', event, session ? session.user.email : 'no user');
     currentUser = session ? session.user : null;
     updateAuthUI();
+    if (event === 'SIGNED_IN' && session) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showSection('journal');
+    }
   });
 });
 
@@ -267,8 +266,6 @@ function updateAuthUI() {
     if (userInfo) userInfo.textContent = '';
   }
 }
-
-const CHECKOUT_URL = 'https://tapgod.lemonsqueezy.com/checkout/buy/57118a96-62bb-4a87-8f5f-6c1c9d3b60e6';
 
 function showSection(section) {
   document.getElementById('landing').style.display = 'none';
