@@ -215,11 +215,41 @@ let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
-  const { data: { session } } = await db.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    updateAuthUI();
+  
+  // Check for magic link token in URL hash
+  const hash = window.location.hash.slice(1);
+  if (hash.includes('access_token')) {
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    
+    if (accessToken && refreshToken) {
+      try {
+        const { data, error } = await db.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        
+        if (!error && data.user) {
+          currentUser = data.user;
+          window.history.replaceState({}, document.title, window.location.pathname);
+          updateAuthUI();
+          showSection('journal');
+          checkSubscription();
+        }
+      } catch(e) {
+        console.error('Magic link failed:', e);
+      }
+    }
+  } else {
+    // Normal session check
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      updateAuthUI();
+    }
   }
+  
   db.auth.onAuthStateChange((_event, session) => {
     currentUser = session ? session.user : null;
     updateAuthUI();
