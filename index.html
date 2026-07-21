@@ -226,7 +226,7 @@ let currentUser = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   db = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
-    auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true, flowType: 'pkce' }
+    auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
   });
   
   // Supabase auto-detects magic link tokens (both hash and PKCE code) on client creation.
