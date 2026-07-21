@@ -32,13 +32,27 @@ exports.handler = async function(event) {
 
     if (eventType === 'checkout.session.completed') {
       const session = stripeEvent.data.object;
-      const userId = session.client_reference_id;
+      let userId = session.client_reference_id;
       const stripeCustomerId = session.customer;
       const stripeSubscriptionId = session.subscription;
+      const payerEmail = session.customer_details ? session.customer_details.email : null;
+
+      // Safety net — should never trigger after today's fix, but a real
+      // payment must NEVER be silently discarded again. If the ID is
+      // missing, try to find the matching user by the email they paid with.
+      if (!userId && payerEmail) {
+        console.error('No client_reference_id — attempting email fallback:', payerEmail);
+        const { data: users } = await supabase.auth.admin.listUsers();
+        const match = users && users.users ? users.users.find(u => u.email === payerEmail) : null;
+        if (match) {
+          userId = match.id;
+          console.log('Email fallback matched user:', userId);
+        }
+      }
 
       if (!userId) {
-        console.error('No client_reference_id in session');
-        return { statusCode: 200, body: 'No user ID' };
+        console.error('CRITICAL: payment received but no user could be matched. Email:', payerEmail, 'Customer:', stripeCustomerId);
+        return { statusCode: 200, body: 'No user ID — needs manual reconciliation' };
       }
 
       await supabase.from('subscriptions').upsert({
