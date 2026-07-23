@@ -258,12 +258,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 function updateAuthUI() {
   const authBtn = document.getElementById('authBtn');
   const userInfo = document.getElementById('userInfo');
+  const authBtnTech = document.getElementById('authBtnTech');
+  const userInfoTech = document.getElementById('userInfoTech');
   if (currentUser) {
     if (authBtn) authBtn.textContent = 'LOGOUT';
     if (userInfo) userInfo.textContent = currentUser.email;
+    if (authBtnTech) authBtnTech.textContent = 'LOGOUT';
+    if (userInfoTech) userInfoTech.textContent = currentUser.email;
   } else {
     if (authBtn) authBtn.textContent = 'LOGIN / SIGN UP';
     if (userInfo) userInfo.textContent = '';
+    if (authBtnTech) authBtnTech.textContent = 'LOGIN / SIGN UP';
+    if (userInfoTech) userInfoTech.textContent = '';
   }
 }
 
@@ -272,6 +278,7 @@ function showSection(section) {
   document.getElementById('app').style.display = 'none';
   document.getElementById('output').style.display = 'none';
   document.getElementById('journal').style.display = 'none';
+  document.getElementById('techniques').style.display = 'none';
   document.getElementById('authModal').style.display = 'none';
   document.getElementById('upgradeWall').style.display = 'none';
   if (section === 'landing') {
@@ -283,6 +290,13 @@ function showSection(section) {
     }
     // Check subscription status
     checkSubscription();
+  } else if (section === 'techniques') {
+    if (!currentUser) {
+      showAuthModal();
+      return;
+    }
+    document.getElementById('techniques').style.display = 'block';
+    loadTechniques();
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -505,6 +519,130 @@ async function loadEntries() {
   } else {
     document.getElementById('insightsPanel').style.display = 'none';
   }
+}
+
+// ===== TECHNIQUE LIBRARY — new isolated feature, doesn't touch journal code =====
+function extractYouTubeId(url) {
+  const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+async function saveTechnique() {
+  const url = document.getElementById('techUrl').value.trim();
+  const title = document.getElementById('techTitle').value.trim();
+  const category = document.getElementById('techCategory').value;
+  const btn = document.querySelector('#techniques .journal-submit-btn');
+
+  if (!url || !title) { alert('Add a link and a name for the technique.'); return; }
+  if (!currentUser) { showAuthModal(); return; }
+  if (btn && btn.disabled) return; // already saving, ignore double-tap
+
+  const videoId = extractYouTubeId(url);
+  if (!videoId) { alert('That doesn\'t look like a valid YouTube link.'); return; }
+
+  if (btn) btn.disabled = true;
+  document.getElementById('savingTechMsg').style.display = 'block';
+
+  try {
+    await db.from('techniques').insert([{
+      user_id: currentUser.id,
+      url: url,
+      video_id: videoId,
+      title: title,
+      category: category
+    }]);
+  } catch(e) {
+    console.error('Save technique failed:', e);
+  }
+
+  if (btn) btn.disabled = false;
+  document.getElementById('techUrl').value = '';
+  document.getElementById('techTitle').value = '';
+  document.getElementById('savingTechMsg').style.display = 'none';
+  loadTechniques();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function deleteTechnique(id) {
+  if (!confirm('Remove this technique from your library?')) return;
+  await db.from('techniques').delete().eq('id', id).eq('user_id', currentUser.id);
+  loadTechniques();
+}
+
+async function loadTechniques() {
+  const list = document.getElementById('techniquesList');
+  let techniques = [];
+
+  if (db && currentUser) {
+    const { data } = await db
+      .from('techniques')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', {ascending: false})
+      .limit(100);
+    techniques = data || [];
+  }
+
+  // One-time starter pack — curated technique videos to seed a new,
+  // empty library so it doesn't look dead on first visit. Guarded by
+  // a localStorage flag so it only ever runs once per user, even if
+  // they later delete every saved technique.
+  const seedFlag = 'techSeeded_' + (currentUser ? currentUser.id : '');
+  if (techniques.length === 0 && currentUser && !localStorage.getItem(seedFlag)) {
+    const starterPack = [
+      { url: 'https://www.youtube.com/watch?v=URGwWYwdoAs', video_id: 'URGwWYwdoAs', title: 'Guard Retention Fundamentals — Gordon Ryan', category: 'GUARD GAME' },
+      { url: 'https://www.youtube.com/watch?v=ce_0XT1BBQA', video_id: 'ce_0XT1BBQA', title: 'Perfect Guard Retention — John Danaher', category: 'GUARD GAME' },
+      { url: 'https://www.youtube.com/watch?v=Le-1C_DPm5Y', video_id: 'Le-1C_DPm5Y', title: 'Leg Weave Pass — Craig Jones', category: 'PASSING' },
+      { url: 'https://www.youtube.com/watch?v=19ALy8iKdi8', video_id: '19ALy8iKdi8', title: 'Smash Pass — Craig Jones', category: 'PASSING' },
+      { url: 'https://www.youtube.com/watch?v=6W5eTSsM6EY', video_id: '6W5eTSsM6EY', title: 'Armbar From Mount — Fundamentals', category: 'SUBMISSIONS' },
+      { url: 'https://www.youtube.com/watch?v=vbBQKkq9lLA', video_id: 'vbBQKkq9lLA', title: 'Basic Armbar From Mount', category: 'SUBMISSIONS' }
+    ];
+    try {
+      await db.from('techniques').insert(starterPack.map(t => ({ ...t, user_id: currentUser.id })));
+      localStorage.setItem(seedFlag, 'true');
+      const { data } = await db
+        .from('techniques')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', {ascending: false})
+        .limit(100);
+      techniques = data || [];
+    } catch(e) {
+      console.error('Starter pack seed failed:', e);
+      localStorage.setItem(seedFlag, 'true'); // still mark as attempted, don't retry loop
+    }
+  }
+
+  const countEl = document.getElementById('techCount');
+  if (countEl) countEl.textContent = techniques.length;
+
+  if (techniques.length === 0) {
+    list.innerHTML = '<div class="empty-state">NO TECHNIQUES SAVED YET — START BUILDING YOUR LIBRARY</div>';
+    return;
+  }
+
+  list.innerHTML = techniques.map(t => {
+    const catClass = 'cat-' + (t.category || 'GENERAL').toLowerCase().replace(/\s+/g,'-');
+    const safeTitle = escapeHtml(t.title);
+    const safeUrl = escapeHtml(t.url);
+    return `<div class="entry-card">
+      <div class="entry-card-top">
+        <div class="entry-category ${catClass}">${escapeHtml(t.category || 'GENERAL')}</div>
+        <button onclick="deleteTechnique('${t.id}')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px 8px;">✕</button>
+      </div>
+      <div class="entry-body" style="display:flex;gap:12px;align-items:center;">
+        <a href="${safeUrl}" target="_blank" style="flex-shrink:0;">
+          <img src="https://img.youtube.com/vi/${t.video_id}/mqdefault.jpg" onerror="this.style.display='none'" style="width:120px;height:68px;object-fit:cover;border:1px solid var(--border);">
+        </a>
+        <a href="${safeUrl}" target="_blank" style="color:var(--white);text-decoration:none;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${safeTitle}</a>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function loadPatternInsights(forceRefresh, entriesParam) {
@@ -974,16 +1112,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">🔗 TECHNIQUE LIBRARY</div>
-            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Save YouTube links to techniques. Your personal BJJ reference.</div>
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
-        </div>
-      </div>
-
     </div>
 
     <div style="text-align:center;margin-top:32px;">
@@ -1329,6 +1457,7 @@ function restart() {
     <div class="journal-nav-right">
       <span id="userInfo" class="journal-nav-email"></span>
       <button class="journal-nav-btn" onclick="showSection('landing')">GAME PLAN</button>
+      <button class="journal-nav-btn" onclick="showSection('techniques')">TECHNIQUES</button>
       <button id="authBtn" class="journal-nav-btn gold" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
     </div>
   </nav>
@@ -1421,6 +1550,48 @@ function restart() {
     <a id="stripeCheckoutBtn" href="https://buy.stripe.com/00w9AS9uw2hG4617AR2sM00" target="_blank" style="display:block;font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;padding:18px 48px;background:var(--gold);color:var(--bg);text-decoration:none;margin-bottom:16px;transition:all 0.2s;">START 7-DAY FREE TRIAL →</a>
     <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:24px;">£5/month after trial • Cancel anytime</div>
     <button onclick="showSection('landing')" style="background:transparent;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;text-decoration:underline;">← Back to game plan builder</button>
+  </div>
+</div>
+
+<!-- TECHNIQUE LIBRARY — new isolated section -->
+<div id="techniques" style="display:none;">
+  <nav class="journal-nav">
+    <div class="journal-nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
+    <div class="journal-nav-right">
+      <span id="userInfoTech" class="journal-nav-email"></span>
+      <button class="journal-nav-btn" onclick="showSection('journal')">JOURNAL</button>
+      <button id="authBtnTech" class="journal-nav-btn gold" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
+    </div>
+  </nav>
+
+  <div class="journal-body">
+    <div class="journal-hero">
+      <div class="journal-hero-label">Technique Library</div>
+      <div class="journal-hero-title">SAVE WHAT<br>WORKS FOR YOU</div>
+      <div class="journal-hero-sub">Paste a YouTube link, tag it to a position, build your own reference library.</div>
+    </div>
+
+    <div class="journal-input-wrap">
+      <input type="url" id="techUrl" placeholder="Paste YouTube link..." style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:14px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+      <input type="text" id="techTitle" placeholder="Technique name (e.g. Scissor sweep from closed guard)" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:14px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+      <select id="techCategory" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:14px 16px;font-size:16px;margin-bottom:16px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+        <option value="GUARD GAME">Guard Game</option>
+        <option value="PASSING">Passing</option>
+        <option value="MOUNT">Mount</option>
+        <option value="BACK CONTROL">Back Control</option>
+        <option value="SIDE CONTROL">Side Control</option>
+        <option value="TAKEDOWNS">Takedowns</option>
+        <option value="LEG LOCKS">Leg Locks</option>
+        <option value="SUBMISSIONS">Submissions</option>
+        <option value="ESCAPES">Escapes</option>
+        <option value="CONCEPTS">Concepts</option>
+      </select>
+      <button class="journal-submit-btn" onclick="saveTechnique()">⚡ SAVE TECHNIQUE</button>
+      <div id="savingTechMsg" style="display:none;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:1px;margin-top:12px;">SAVING...</div>
+    </div>
+
+    <div style="text-align:center;margin-bottom:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;"><span id="techCount" style="color:var(--gold);font-size:20px;font-family:'Bebas Neue',sans-serif;">0</span> SAVED</div>
+    <div id="techniquesList" style="margin-top:32px;"></div>
   </div>
 </div>
 
