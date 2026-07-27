@@ -295,13 +295,14 @@ function showSection(section) {
       showAuthModal();
       return;
     }
-    document.getElementById('techniques').style.display = 'block';
-    loadTechniques();
+    checkSubscription('techniques');
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-async function checkSubscription() {
+async function checkSubscription(targetSection) {
+  targetSection = targetSection || 'journal'; // preserves exact original behavior when called with no args
+
   // Always set the dynamic Stripe link first, before any DB call —
   // this MUST happen every time the upgrade wall can show, otherwise
   // a payment gets sent with no user ID attached and the webhook
@@ -322,8 +323,9 @@ async function checkSubscription() {
       .single();
     
     if (data && !error) {
-      document.getElementById('journal').style.display = 'block';
-      loadEntries();
+      document.getElementById(targetSection).style.display = 'block';
+      if (targetSection === 'journal') loadEntries();
+      if (targetSection === 'techniques') loadTechniques();
     } else {
       document.getElementById('upgradeWall').style.display = 'flex';
     }
@@ -1015,6 +1017,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:400px;">
       <button class="cta-btn" onclick="startApp()" style="width:100%;">BUILD MY GAME PLAN →</button>
       <button onclick="showSection('journal')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">SESSION JOURNAL</button>
+      <button onclick="showSection('techniques')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">TECHNIQUE LIBRARY</button>
     </div>
     <p class="hero-footer">Game plan free forever — Journal from £6.99/month</p>
     <div class="hero-stats">
@@ -1071,6 +1074,16 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🎤 VOICE NOTES</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Speak after training. AI transcribes and categorises.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
+      <div onclick="showSection('techniques')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🔗 TECHNIQUE LIBRARY</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Save YouTube links to techniques. Your personal BJJ reference.</div>
           </div>
           <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
         </div>
