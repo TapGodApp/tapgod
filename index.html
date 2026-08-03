@@ -616,7 +616,8 @@ async function loadTechniques() {
       techniques = data || [];
     } catch(e) {
       console.error('Starter pack seed failed:', e);
-      localStorage.setItem(seedFlag, 'true'); // still mark as attempted, don't retry loop
+      // Do NOT mark as seeded here — if this failed (e.g. table didn't
+      // exist yet), we want it to retry next time, not give up forever.
     }
   }
 
