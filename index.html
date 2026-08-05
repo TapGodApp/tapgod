@@ -13,9 +13,6 @@
 <script>
 if ('serviceWorker' in navigator) {
   let refreshing = false;
-  // When the new service worker takes control, the page MUST reload —
-  // otherwise old JS keeps running against new cached files, causing
-  // broken/inconsistent behaviour that looks like "the app is buggy".
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing) return;
     refreshing = true;
@@ -28,8 +25,6 @@ if ('serviceWorker' in navigator) {
         const newWorker = reg.installing;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version available — show banner (reload happens automatically
-            // via controllerchange above once the new worker activates)
             const banner = document.createElement('div');
             banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#d4a843;color:#060809;padding:16px;text-align:center;font-family:Share Tech Mono,monospace;font-size:14px;z-index:10000;';
             banner.textContent = 'Updating to the latest version...';
@@ -37,7 +32,6 @@ if ('serviceWorker' in navigator) {
           }
         });
       });
-      // Check for updates every hour
       setInterval(() => reg.update(), 3600000);
     });
   });
@@ -84,7 +78,6 @@ async function startVoiceNote() {
     return;
   }
 
-  // Samsung Android handles mp4 more reliably than webm
   let mimeType = '';
   if (MediaRecorder.isTypeSupported('audio/mp4')) {
     mimeType = 'audio/mp4';
@@ -108,12 +101,10 @@ async function startVoiceNote() {
   };
 
   mediaRecorder.onstop = async () => {
-    // Stop all tracks to release mic
     recordingStream.getTracks().forEach(track => track.stop());
     
     const audioBlob = new Blob(audioChunks, { type: mimeType });
     
-    // Minimum length check
     if (audioBlob.size < 100) {
       document.getElementById('savingMsg').style.display = 'none';
       micBtn.textContent = '🎤 VOICE';
@@ -122,19 +113,16 @@ async function startVoiceNote() {
       return;
     }
 
-    // Show transcribing message
     document.getElementById('savingMsg').textContent = 'TRANSCRIBING...';
     document.getElementById('savingMsg').style.display = 'block';
 
     try {
-      // Convert blob to base64
       const base64 = await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result.split(',')[1]);
         reader.readAsDataURL(audioBlob);
       });
 
-      // Send to Netlify transcribe function
       const response = await fetch('/.netlify/functions/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,7 +149,7 @@ async function startVoiceNote() {
     isRecording = false;
   };
 
-  mediaRecorder.start(100); // collect data every 100ms
+  mediaRecorder.start(100);
   isRecording = true;
   micBtn.textContent = '⏹ STOP RECORDING';
   micBtn.classList.add('recording');
@@ -179,7 +167,6 @@ let deferredPrompt = null;
 const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
 const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches;
 
-// Show iOS banner
 if (isIOS && !isInStandaloneMode && !localStorage.getItem('tapgod_install_dismissed')) {
   setTimeout(() => {
     document.getElementById('installBanner').style.display = 'flex';
@@ -229,15 +216,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     auth: { detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
   });
   
-  // Supabase auto-detects magic link tokens (both hash and PKCE code) on client creation.
-  // getSession() below will pick up the session it just detected from the URL.
   const { data: { session }, error } = await db.auth.getSession();
   console.log('Initial session check:', session ? session.user.email : 'no session', error || '');
   
   if (session) {
     currentUser = session.user;
     updateAuthUI();
-    // If we landed here via magic link (URL had auth params), clean URL and go to journal
     if (window.location.hash.includes('access_token') || window.location.search.includes('code=')) {
       window.history.replaceState({}, document.title, window.location.pathname);
       showSection('journal');
@@ -288,7 +272,6 @@ function showSection(section) {
       showAuthModal();
       return;
     }
-    // Check subscription status
     checkSubscription();
   } else if (section === 'techniques') {
     if (!currentUser) {
@@ -301,12 +284,8 @@ function showSection(section) {
 }
 
 async function checkSubscription(targetSection) {
-  targetSection = targetSection || 'journal'; // preserves exact original behavior when called with no args
+  targetSection = targetSection || 'journal';
 
-  // Always set the dynamic Stripe link first, before any DB call —
-  // this MUST happen every time the upgrade wall can show, otherwise
-  // a payment gets sent with no user ID attached and the webhook
-  // silently discards it (user pays, gets nothing, no error shown).
   if (currentUser) {
     const stripeBase = 'https://buy.stripe.com/00w9AS9uw2hG4617AR2sM00';
     const stripeLink = `${stripeBase}?client_reference_id=${currentUser.id}&prefilled_email=${encodeURIComponent(currentUser.email)}`;
@@ -415,7 +394,6 @@ async function saveEntry() {
     summary = '';
   }
 
-  // Save to Supabase with user_id
   await db.from('journal_entries').insert([{
     user_id: currentUser.id,
     email: currentUser.email,
@@ -444,7 +422,6 @@ async function loadEntries() {
     entries = data || [];
   }
 
-  // Calculate streak and stats
   const totalCount = entries.length;
   const weekCount = entries.filter(e => {
     const entryDate = new Date(e.created_at);
@@ -455,7 +432,6 @@ async function loadEntries() {
 
   let streak = 0;
   if (entries.length > 0) {
-    // Get unique dates
     const uniqueDates = new Set();
     entries.forEach(e => {
       const entryDate = new Date(e.created_at);
@@ -504,18 +480,15 @@ async function loadEntries() {
     </div>`;
   }).join('');
 
-  // Trigger pattern insights every 3 entries (not every single save) — patterns build over multiple sessions, not one
   if (entries.length >= 3 && entries.length % 3 === 0) {
     loadPatternInsights(false, entries);
   } else if (entries.length >= 3) {
-    // Still show the panel using cached insight if we have one, just don't re-call the AI
     const cacheKey = 'tapgod_insights_' + currentUser.id;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       document.getElementById('insightsPanel').style.display = 'block';
       document.getElementById('insightsText').textContent = JSON.parse(cached).text;
     } else {
-      // No cache yet and not on a multiple of 3 — run it once now so the feature isn't hidden until entry 6
       loadPatternInsights(false, entries);
     }
   } else {
@@ -523,7 +496,7 @@ async function loadEntries() {
   }
 }
 
-// ===== TECHNIQUE LIBRARY — new isolated feature, doesn't touch journal code =====
+// ===== TECHNIQUE LIBRARY =====
 function extractYouTubeId(url) {
   const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   return match ? match[1] : null;
@@ -537,7 +510,7 @@ async function saveTechnique() {
 
   if (!url || !title) { alert('Add a link and a name for the technique.'); return; }
   if (!currentUser) { showAuthModal(); return; }
-  if (btn && btn.disabled) return; // already saving, ignore double-tap
+  if (btn && btn.disabled) return;
 
   const videoId = extractYouTubeId(url);
   if (!videoId) { alert('That doesn\'t look like a valid YouTube link.'); return; }
@@ -590,10 +563,6 @@ async function loadTechniques() {
     techniques = data || [];
   }
 
-  // One-time starter pack — curated technique videos to seed a new,
-  // empty library so it doesn't look dead on first visit. Guarded by
-  // a localStorage flag so it only ever runs once per user, even if
-  // they later delete every saved technique.
   const seedFlag = 'techSeeded_' + (currentUser ? currentUser.id : '');
   if (techniques.length === 0 && currentUser && !localStorage.getItem(seedFlag)) {
     const starterPack = [
@@ -616,8 +585,6 @@ async function loadTechniques() {
       techniques = data || [];
     } catch(e) {
       console.error('Starter pack seed failed:', e);
-      // Do NOT mark as seeded here — if this failed (e.g. table didn't
-      // exist yet), we want it to retry next time, not give up forever.
     }
   }
 
@@ -668,7 +635,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     return;
   }
 
-  // Use cache unless forced refresh
   const cacheKey = 'tapgod_insights_' + currentUser.id;
   if (!forceRefresh) {
     const cached = localStorage.getItem(cacheKey);
@@ -836,7 +802,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .footer-strip { text-align: center; padding: 24px; border-top: 1px solid var(--border); margin-top: 48px; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 3px; }
   .footer-strip span { color: var(--gold); }
 
-  /* ========== PATTERN INSIGHTS ========== */
   .streak-panel { display: flex; gap: 24px; justify-content: center; padding: 32px 24px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 32px; }
   .streak-stat { text-align: center; flex: 1; }
   .streak-num { font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: var(--gold); line-height: 1; margin-bottom: 6px; }
@@ -852,7 +817,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .insights-refresh { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; cursor:pointer; text-decoration:underline; margin-top:14px; display:inline-block; }
   .insights-refresh:hover { color:var(--gold); }
 
-  /* ========== PWA INSTALL BANNER ========== */
   #installBanner {
     display: none;
     position: fixed;
@@ -1162,7 +1126,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="opt" onclick="pick(this,'belt','Black Belt')"><span class="opt-name">⬛ BLACK</span><span class="opt-hint">The art of mastery.</span></button>
       <button class="opt" onclick="pick(this,'belt','No-Gi Only')"><span class="opt-name">🤼 NO-GI</span><span class="opt-hint">Submission grappling focus.</span></button>
     </div>
-    <div class="nav-row"><span></span><button class="btn btn-go" onclick="next(0)">NEXT →</button></div>
+    <div class="nav-row"><span></span><button class="btn btn-go" onclick="next(0,2)">NEXT →</button></div>
   </div>
 
   <div class="step" id="s2">
@@ -1179,7 +1143,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="opt" onclick="pick(this,'style','Positional control / chess player')"><span class="opt-name">♟️ CHESS PLAYER</span><span class="opt-hint">Methodical. Control, score, minimise risk.</span></button>
       <button class="opt" onclick="pick(this,'style','Still finding my game')"><span class="opt-name">🔍 FINDING IT</span><span class="opt-hint">Let the plan help me discover my style.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(1)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(2,0)">← BACK</button><button class="btn btn-go" onclick="next(2,3)">NEXT →</button></div>
   </div>
 
   <div class="step" id="s3">
@@ -1199,7 +1163,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="opt" onclick="pick(this,'position','X Guard / Single Leg X')"><span class="opt-name">X GUARD</span><span class="opt-hint">Athletic, dynamic, lots of sweeps.</span></button>
       <button class="opt" onclick="pick(this,'position','No clear favourite — well rounded')"><span class="opt-name">WELL ROUNDED</span><span class="opt-hint">Comfortable everywhere.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(5)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(3,2)">← BACK</button><button class="btn btn-go" onclick="next(3,4)">NEXT →</button></div>
   </div>
 
   <div class="step" id="s4">
@@ -1217,7 +1181,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="opt" onclick="multi(this,'weakness','Defending submissions')"><span class="opt-name">DEFENCE</span><span class="opt-hint">Getting caught by the same attacks repeatedly.</span></button>
       <button class="opt" onclick="multi(this,'weakness','Cardio and pacing')"><span class="opt-name">CARDIO / PACING</span><span class="opt-hint">Gassing out mid-roll and losing position.</span></button>
     </div>
-    <div class="nav-row"><button class="btn btn-back" onclick="back(5)">← BACK</button><button class="btn btn-go" onclick="next(5)">NEXT →</button></div>
+    <div class="nav-row"><button class="btn btn-back" onclick="back(4,3)">← BACK</button><button class="btn btn-go" onclick="next(4,5)">NEXT →</button></div>
   </div>
 
   <div class="step" id="s5">
@@ -1238,7 +1202,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="opt" onclick="pick(this,'goal','Dominate at my gym')"><span class="opt-name">😤 DOMINATE</span><span class="opt-hint">Be the problem in every roll.</span></button>
     </div>
     <button class="btn btn-generate" onclick="generate()">⚡ GENERATE MY GAME PLAN</button>
-    <div class="nav-row" style="margin-top:16px"><button class="btn btn-back" onclick="back(5)">← BACK</button><span></span></div>
+    <div class="nav-row" style="margin-top:16px"><button class="btn btn-back" onclick="back(5,4)">← BACK</button><span></span></div>
   </div>
 </div>
 
@@ -1306,24 +1270,30 @@ function slideUpdate() {
 }
 
 const REQ = ['belt','height','style','position',null,'goal'];
+// Step id "1" (height/weight) was removed and never rebuilt — this map
+// tells next()/back() which real step to jump to, and what number to
+// display, so nothing ever points at the missing step again.
+const STEP_DISPLAY = {0:1, 2:3, 3:4, 4:5, 5:6};
 
-function next(i) {
+function next(i, target) {
+  if (target === undefined) target = i+1;
   if (REQ[i] && !D[REQ[i]]) { alert('Please make a selection.'); return; }
   if (i===4 && D.weakness.length===0) { alert('Pick at least one weakness.'); return; }
   document.getElementById('s'+i).classList.remove('active');
-  document.getElementById('s'+(i+1)).classList.add('active');
+  document.getElementById('s'+target).classList.add('active');
   document.getElementById('ps'+i).classList.replace('active','done');
-  document.getElementById('ps'+(i+1)).classList.add('active');
-  document.getElementById('stepLabel').textContent = 'STEP '+(i+2)+' OF 6';
+  document.getElementById('ps'+target).classList.add('active');
+  document.getElementById('stepLabel').textContent = 'STEP '+STEP_DISPLAY[target]+' OF 6';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function back(i) {
+function back(i, target) {
+  if (target === undefined) target = i-1;
   document.getElementById('s'+i).classList.remove('active');
-  document.getElementById('s'+(i-1)).classList.add('active');
+  document.getElementById('s'+target).classList.add('active');
   document.getElementById('ps'+i).classList.remove('active');
-  document.getElementById('ps'+(i-1)).classList.replace('done','active');
-  document.getElementById('stepLabel').textContent = 'STEP '+i+' OF 6';
+  document.getElementById('ps'+target).classList.replace('done','active');
+  document.getElementById('stepLabel').textContent = 'STEP '+STEP_DISPLAY[target]+' OF 6';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
