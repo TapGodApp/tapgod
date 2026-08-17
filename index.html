@@ -244,16 +244,22 @@ function updateAuthUI() {
   const userInfo = document.getElementById('userInfo');
   const authBtnTech = document.getElementById('authBtnTech');
   const userInfoTech = document.getElementById('userInfoTech');
+  const authBtnWeight = document.getElementById('authBtnWeight');
+  const userInfoWeight = document.getElementById('userInfoWeight');
   if (currentUser) {
     if (authBtn) authBtn.textContent = 'LOGOUT';
     if (userInfo) userInfo.textContent = currentUser.email;
     if (authBtnTech) authBtnTech.textContent = 'LOGOUT';
     if (userInfoTech) userInfoTech.textContent = currentUser.email;
+    if (authBtnWeight) authBtnWeight.textContent = 'LOGOUT';
+    if (userInfoWeight) userInfoWeight.textContent = currentUser.email;
   } else {
     if (authBtn) authBtn.textContent = 'LOGIN / SIGN UP';
     if (userInfo) userInfo.textContent = '';
     if (authBtnTech) authBtnTech.textContent = 'LOGIN / SIGN UP';
     if (userInfoTech) userInfoTech.textContent = '';
+    if (authBtnWeight) authBtnWeight.textContent = 'LOGIN / SIGN UP';
+    if (userInfoWeight) userInfoWeight.textContent = '';
   }
 }
 
@@ -263,6 +269,7 @@ function showSection(section) {
   document.getElementById('output').style.display = 'none';
   document.getElementById('journal').style.display = 'none';
   document.getElementById('techniques').style.display = 'none';
+  document.getElementById('weighttracker').style.display = 'none';
   document.getElementById('authModal').style.display = 'none';
   document.getElementById('upgradeWall').style.display = 'none';
   if (section === 'landing') {
@@ -279,6 +286,12 @@ function showSection(section) {
       return;
     }
     checkSubscription('techniques');
+  } else if (section === 'weighttracker') {
+    if (!currentUser) {
+      showAuthModal();
+      return;
+    }
+    checkSubscription('weighttracker');
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -305,6 +318,7 @@ async function checkSubscription(targetSection) {
       document.getElementById(targetSection).style.display = 'block';
       if (targetSection === 'journal') loadEntries();
       if (targetSection === 'techniques') loadTechniques();
+      if (targetSection === 'weighttracker') loadWeightEntries();
     } else {
       document.getElementById('upgradeWall').style.display = 'flex';
     }
@@ -610,6 +624,122 @@ async function loadTechniques() {
           <img src="https://img.youtube.com/vi/${t.video_id}/mqdefault.jpg" onerror="this.style.display='none'" style="width:120px;height:68px;object-fit:cover;border:1px solid var(--border);">
         </a>
         <a href="${safeUrl}" target="_blank" style="color:var(--white);text-decoration:none;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${safeTitle}</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== COMPETITION WEIGHT TRACKER — new isolated feature, doesn't touch journal or techniques code =====
+async function saveWeightTarget() {
+  const target = parseFloat(document.getElementById('weightTarget').value);
+  if (!target || target <= 0) { alert('Enter a valid target weight.'); return; }
+  if (!currentUser) { showAuthModal(); return; }
+
+  try {
+    await db.from('weight_targets').upsert({
+      user_id: currentUser.id,
+      target_kg: target
+    }, { onConflict: 'user_id' });
+  } catch(e) {
+    console.error('Save weight target failed:', e);
+  }
+
+  document.getElementById('weightTarget').value = '';
+  loadWeightEntries();
+}
+
+async function saveWeightEntry() {
+  const weight = parseFloat(document.getElementById('weightEntry').value);
+  const btn = document.querySelector('#weighttracker .journal-submit-btn');
+
+  if (!weight || weight <= 0) { alert('Enter a valid weight.'); return; }
+  if (weight > 300) { alert('That doesn\'t look right — check the number.'); return; }
+  if (!currentUser) { showAuthModal(); return; }
+  if (btn && btn.disabled) return; // already saving, ignore double-tap
+
+  if (btn) btn.disabled = true;
+  document.getElementById('savingWeightMsg').style.display = 'block';
+
+  try {
+    await db.from('weight_entries').insert([{
+      user_id: currentUser.id,
+      weight_kg: weight
+    }]);
+  } catch(e) {
+    console.error('Save weight entry failed:', e);
+  }
+
+  if (btn) btn.disabled = false;
+  document.getElementById('weightEntry').value = '';
+  document.getElementById('savingWeightMsg').style.display = 'none';
+  loadWeightEntries();
+}
+
+async function deleteWeightEntry(id) {
+  if (!confirm('Remove this weight entry?')) return;
+  await db.from('weight_entries').delete().eq('id', id).eq('user_id', currentUser.id);
+  loadWeightEntries();
+}
+
+async function loadWeightEntries() {
+  const list = document.getElementById('weightEntriesList');
+  let entries = [];
+  let target = null;
+
+  if (db && currentUser) {
+    const { data } = await db
+      .from('weight_entries')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', {ascending: false})
+      .limit(50);
+    entries = data || [];
+
+    const { data: targetData } = await db
+      .from('weight_targets')
+      .select('target_kg')
+      .eq('user_id', currentUser.id)
+      .single();
+    target = targetData ? targetData.target_kg : null;
+  }
+
+  // Update the target/current/diff panel
+  const panel = document.getElementById('weightTargetPanel');
+  if (target || entries.length > 0) {
+    panel.style.display = 'flex';
+    const current = entries.length > 0 ? entries[0].weight_kg : null;
+    let trend = '';
+    if (entries.length >= 2) {
+      if (entries[0].weight_kg < entries[1].weight_kg) trend = ' ↓';
+      else if (entries[0].weight_kg > entries[1].weight_kg) trend = ' ↑';
+      else trend = ' →';
+    }
+    document.getElementById('weightCurrentDisplay').textContent = current !== null ? current + 'kg' + trend : '—';
+    document.getElementById('weightTargetDisplay').textContent = target !== null ? target + 'kg' : '—';
+    if (current !== null && target !== null) {
+      const diff = (current - target).toFixed(1);
+      document.getElementById('weightDiffDisplay').textContent = (diff > 0 ? '+' : '') + diff + 'kg';
+    } else {
+      document.getElementById('weightDiffDisplay').textContent = '—';
+    }
+  } else {
+    panel.style.display = 'none';
+  }
+
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="empty-state">NO WEIGHT LOGGED YET — START TRACKING YOUR CUT</div>';
+    return;
+  }
+
+  list.innerHTML = entries.map(e => {
+    const date = new Date(e.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    return `<div class="entry-card">
+      <div class="entry-card-top">
+        <div class="entry-category cat-general">${e.weight_kg}KG</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="entry-date">${date}</div>
+          <button onclick="deleteWeightEntry('${e.id}')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px 8px;">✕</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -983,6 +1113,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
       <button class="cta-btn" onclick="startApp()" style="width:100%;">BUILD MY GAME PLAN →</button>
       <button onclick="showSection('journal')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">SESSION JOURNAL</button>
       <button onclick="showSection('techniques')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">TECHNIQUE LIBRARY</button>
+      <button onclick="showSection('weighttracker')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">WEIGHT TRACKER</button>
     </div>
     <p class="hero-footer">Game plan free forever — Journal from £5/month</p>
     <div class="hero-stats">
@@ -1050,21 +1181,21 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
         </div>
       </div>
 
+      <div onclick="showSection('weighttracker')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">⚖️ COMPETITION WEIGHT TRACKER</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Track your weight cut. Hit your division on fight day.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- Coming soon -->
     <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:12px;">COMING SOON</div>
     <div style="display:flex;flex-direction:column;gap:8px;">
-
-      <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--muted);">⚖️ COMPETITION WEIGHT TRACKER</div>
-            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:2px;">Track your weight cut. Hit your division on fight day.</div>
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:3px 8px;border:1px solid var(--border);">SOON</div>
-        </div>
-      </div>
 
       <div style="background:var(--surface);border:1px solid var(--border);padding:14px 20px;opacity:0.6;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1426,6 +1557,7 @@ function restart() {
       <span id="userInfo" class="journal-nav-email"></span>
       <button class="journal-nav-btn" onclick="showSection('landing')">GAME PLAN</button>
       <button class="journal-nav-btn" onclick="showSection('techniques')">TECHNIQUES</button>
+      <button class="journal-nav-btn" onclick="showSection('weighttracker')">WEIGHT</button>
       <button id="authBtn" class="journal-nav-btn gold" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
     </div>
   </nav>
@@ -1560,6 +1692,57 @@ function restart() {
 
     <div style="text-align:center;margin-bottom:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;"><span id="techCount" style="color:var(--gold);font-size:20px;font-family:'Bebas Neue',sans-serif;">0</span> SAVED</div>
     <div id="techniquesList" style="margin-top:32px;"></div>
+  </div>
+</div>
+
+<!-- COMPETITION WEIGHT TRACKER — new isolated section -->
+<div id="weighttracker" style="display:none;">
+  <nav class="journal-nav">
+    <div class="journal-nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
+    <div class="journal-nav-right">
+      <span id="userInfoWeight" class="journal-nav-email"></span>
+      <button class="journal-nav-btn" onclick="showSection('journal')">JOURNAL</button>
+      <button id="authBtnWeight" class="journal-nav-btn gold" onclick="currentUser ? handleLogout() : showAuthModal()">LOGIN</button>
+    </div>
+  </nav>
+
+  <div class="journal-body">
+    <div class="journal-hero">
+      <div class="journal-hero-label">Competition Weight Tracker</div>
+      <div class="journal-hero-title">TRACK YOUR<br>WEIGHT CUT</div>
+      <div class="journal-hero-sub">Log your weight. Set a target. Hit your division on fight day.</div>
+    </div>
+
+    <div class="journal-input-wrap">
+      <input type="number" step="0.1" id="weightTarget" placeholder="Target weight for competition (kg)" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:14px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+      <button onclick="saveWeightTarget()" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:12px;cursor:pointer;margin-bottom:24px;">SET TARGET</button>
+
+      <input type="number" step="0.1" id="weightEntry" placeholder="Today's weight (kg)" style="width:100%;background:#101519;border:1px solid #1a2530;color:#eef3f7;padding:14px 16px;font-size:16px;margin-bottom:12px;outline:none;font-family:'Barlow Condensed',sans-serif;">
+      <button class="journal-submit-btn" onclick="saveWeightEntry()">⚡ LOG WEIGHT</button>
+      <div id="savingWeightMsg" style="display:none;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:1px;margin-top:12px;">SAVING...</div>
+    </div>
+
+    <div id="weightTargetPanel" class="streak-panel" style="display:none;">
+      <div class="streak-stat">
+        <div class="streak-num" id="weightCurrentDisplay">—</div>
+        <div class="streak-label">Current</div>
+      </div>
+      <div class="streak-stat">
+        <div class="streak-num" id="weightTargetDisplay">—</div>
+        <div class="streak-label">Target</div>
+      </div>
+      <div class="streak-stat">
+        <div class="streak-num" id="weightDiffDisplay">—</div>
+        <div class="streak-label">To Go</div>
+      </div>
+    </div>
+
+    <div class="journal-divider">
+      <div class="journal-divider-label">WEIGHT LOG</div>
+      <div class="journal-divider-line"></div>
+    </div>
+
+    <div id="weightEntriesList"></div>
   </div>
 </div>
 
