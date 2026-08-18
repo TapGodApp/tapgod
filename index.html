@@ -494,20 +494,9 @@ async function loadEntries() {
     </div>`;
   }).join('');
 
-  if (entries.length >= 3 && entries.length % 3 === 0) {
-    loadPatternInsights(false, entries);
-  } else if (entries.length >= 3) {
-    const cacheKey = 'tapgod_insights_' + currentUser.id;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      document.getElementById('insightsPanel').style.display = 'block';
-      document.getElementById('insightsText').textContent = JSON.parse(cached).text;
-    } else {
-      loadPatternInsights(false, entries);
-    }
-  } else {
-    document.getElementById('insightsPanel').style.display = 'none';
-  }
+  // Weekly recap handles its own 7-day filtering and caching internally —
+  // just call it every time entries change, it decides what to show.
+  loadPatternInsights(false, entries);
 }
 
 // ===== TECHNIQUE LIBRARY =====
@@ -749,42 +738,48 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   const panel = document.getElementById('insightsPanel');
   const textEl = document.getElementById('insightsText');
 
-  let entries = entriesParam;
-  if (!entries) {
+  let allEntries = entriesParam;
+  if (!allEntries) {
     const { data } = await db
       .from('journal_entries')
       .select('*')
       .eq('user_id', currentUser.id)
       .order('created_at', {ascending: false})
-      .limit(10);
-    entries = data || [];
+      .limit(50);
+    allEntries = data || [];
   }
 
-  if (entries.length < 3) {
+  // Real 7-day window — not "last N entries regardless of when they happened"
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const entries = allEntries.filter(e => new Date(e.created_at) > weekAgo);
+
+  if (entries.length < 2) {
     panel.style.display = 'none';
     return;
   }
 
-  const cacheKey = 'tapgod_insights_' + currentUser.id;
+  // Cache per calendar week only — NOT per entry count. Regenerating on
+  // every single save would silently remove the cost control the original
+  // design had ("not every save"). This only regenerates when a new week
+  // starts, or the user manually taps refresh.
+  const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  const cacheKey = 'tapgod_weekly_' + currentUser.id + '_' + weekNumber;
   if (!forceRefresh) {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
-      const parsedCache = JSON.parse(cached);
-      if (parsedCache.entryCount === entries.length) {
-        panel.style.display = 'block';
-        textEl.textContent = parsedCache.text;
-        return;
-      }
+      panel.style.display = 'block';
+      textEl.innerHTML = JSON.parse(cached).html;
+      return;
     }
   }
 
   panel.style.display = 'block';
-  textEl.innerHTML = '<span class="insights-loading">ANALYSING YOUR LAST ' + Math.min(entries.length, 10) + ' SESSIONS...</span>';
+  textEl.innerHTML = '<span class="insights-loading">SUMMARISING YOUR WEEK...</span>';
 
-  const recent = entries.slice(0, 10);
-  const sessionsText = recent.map((e, i) => `Session ${i+1} (${e.category || 'GENERAL'}): ${e.entry}`).join('\n\n');
+  const sessionsText = entries.map((e, i) => `Session ${i+1} (${e.category || 'GENERAL'}): ${e.entry}`).join('\n\n');
 
-  const prompt = 'You are a blunt BJJ coach reviewing a student\'s recent training journal entries. Find a genuine pattern — a recurring weakness, a technique they keep mentioning, a gap, or real progress. Talk like a coach, not an AI: short sentences, no filler ("it appears", "this suggests", "it\'s worth noting"), no hedging. State the pattern plainly, then give one direct thing to do about it. Respond with ONLY a JSON object (no markdown, no backticks): {"insight": "2 short, direct sentences max. Reference actual techniques or positions they mentioned — never generic advice."} Sessions:\n\n' + sessionsText;
+  const prompt = 'You are a blunt BJJ coach recapping a student\'s training week. Read these session notes from the last 7 days and pull out the key concepts they actually worked on — real technique names, not vague categories. Talk like a coach, not an AI: short phrases, no filler ("it appears", "this suggests"), no hedging. Respond with ONLY a JSON object (no markdown, no backticks): {"concepts": ["3-5 short bullet points, each one a specific technique or concept from this week, a few words only — like a diary recap, not a sentence"], "focus": "one short, direct line on what to focus on next week based on this"} Sessions:\n\n' + sessionsText;
 
   try {
     const res = await fetch('/.netlify/functions/generate', {
@@ -795,11 +790,22 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     const data = await res.json();
     const aiText = data.content[0].text;
     const parsed = JSON.parse(aiText.replace(/```json|```/g,'').trim());
-    const insightText = parsed.insight || 'Keep logging sessions to unlock deeper pattern analysis.';
-    textEl.textContent = insightText;
-    localStorage.setItem(cacheKey, JSON.stringify({ text: insightText, entryCount: entries.length }));
+    const concepts = Array.isArray(parsed.concepts) ? parsed.concepts : [];
+    const focus = parsed.focus || '';
+
+    let html = '';
+    if (concepts.length > 0) {
+      html += '<ul>' + concepts.map(c => '<li>' + c + '</li>').join('') + '</ul>';
+    }
+    if (focus) {
+      html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);color:var(--gold);font-size:14px;">→ ' + focus + '</div>';
+    }
+    if (!html) html = 'Keep logging sessions to unlock your weekly recap.';
+
+    textEl.innerHTML = html;
+    localStorage.setItem(cacheKey, JSON.stringify({ html: html }));
   } catch(e) {
-    textEl.textContent = 'Unable to analyse patterns right now. Tap refresh to try again.';
+    textEl.textContent = 'Unable to build your weekly recap right now. Tap refresh to try again.';
   }
 }
 
@@ -1597,11 +1603,11 @@ function restart() {
     <div id="insightsPanel" class="insights-panel">
       <div class="insights-header">
         <span class="insights-icon">🧠</span>
-        <span class="insights-title">YOUR PATTERNS</span>
+        <span class="insights-title">THIS WEEK</span>
       </div>
-      <div class="insights-subtitle">AI ANALYSIS ACROSS YOUR RECENT SESSIONS</div>
+      <div class="insights-subtitle">KEY CONCEPTS FROM YOUR LAST 7 DAYS</div>
       <div class="insights-text" id="insightsText"></div>
-      <span class="insights-refresh" onclick="loadPatternInsights(true)">↻ REFRESH ANALYSIS</span>
+      <span class="insights-refresh" onclick="loadPatternInsights(true)">↻ REFRESH</span>
     </div>
 
     <div class="journal-divider">
