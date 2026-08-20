@@ -494,9 +494,143 @@ async function loadEntries() {
     </div>`;
   }).join('');
 
-  // Weekly recap handles its own 7-day filtering and caching internally —
-  // just call it every time entries change, it decides what to show.
   loadPatternInsights(false, entries);
+}
+
+// ===== ASK YOUR JOURNAL — reuses existing generate + transcribe endpoints, no new backend needed =====
+let askMediaRecorder = null;
+let askAudioChunks = [];
+let askIsRecording = false;
+let askRecordingStream = null;
+
+function toggleAskVoice() {
+  if (askIsRecording) { stopAskVoice(); } else { startAskVoice(); }
+}
+
+async function startAskVoice() {
+  const micBtn = document.getElementById('askMicBtn');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('Voice input is not supported on this browser.');
+    return;
+  }
+  try {
+    askRecordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    alert('Microphone error: ' + e.name);
+    return;
+  }
+
+  let mimeType = '';
+  if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+  else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+  else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+  else { alert('Audio recording not supported on this browser.'); askRecordingStream.getTracks().forEach(t=>t.stop()); return; }
+
+  askAudioChunks = [];
+  askMediaRecorder = new MediaRecorder(askRecordingStream, { mimeType });
+  askMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) askAudioChunks.push(e.data); };
+
+  askMediaRecorder.onstop = async () => {
+    askRecordingStream.getTracks().forEach(t => t.stop());
+    const audioBlob = new Blob(askAudioChunks, { type: mimeType });
+
+    if (audioBlob.size < 100) {
+      micBtn.textContent = '🎤';
+      micBtn.classList.remove('recording');
+      askIsRecording = false;
+      return;
+    }
+
+    micBtn.textContent = '...';
+
+    try {
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(audioBlob);
+      });
+
+      const response = await fetch('/.netlify/functions/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, mimeType })
+      });
+
+      const data = await response.json();
+      if (data.transcript) {
+        document.getElementById('askInput').value = data.transcript;
+      } else {
+        alert('Could not transcribe. Please try again or type your question.');
+      }
+    } catch(e) {
+      alert('Transcription failed. Please check your connection and try again.');
+    }
+
+    micBtn.textContent = '🎤';
+    micBtn.classList.remove('recording');
+    askIsRecording = false;
+  };
+
+  askMediaRecorder.start(100);
+  askIsRecording = true;
+  micBtn.textContent = '⏹';
+  micBtn.classList.add('recording');
+}
+
+function stopAskVoice() {
+  if (askMediaRecorder && askMediaRecorder.state !== 'inactive') {
+    askMediaRecorder.stop();
+  }
+}
+
+async function askJournal() {
+  const question = document.getElementById('askInput').value.trim();
+  if (!question) { alert('Type or say a question first.'); return; }
+  if (!currentUser) { showAuthModal(); return; }
+
+  const answerWrap = document.getElementById('askAnswerWrap');
+  const answerText = document.getElementById('askAnswerText');
+  answerWrap.style.display = 'block';
+  answerText.innerHTML = '<span class="insights-loading">CHECKING YOUR JOURNAL...</span>';
+
+  let entries = [];
+  try {
+    const { data } = await db
+      .from('journal_entries')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', {ascending: false})
+      .limit(100);
+    entries = data || [];
+  } catch(e) {
+    answerText.textContent = 'Could not load your journal right now. Try again.';
+    return;
+  }
+
+  if (entries.length === 0) {
+    answerText.textContent = 'No journal entries yet — log a few sessions first, then ask away.';
+    return;
+  }
+
+  const entriesText = entries.map(e => {
+    const date = new Date(e.created_at).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    return `[${date}] (${e.category || 'GENERAL'}) ${e.entry}`;
+  }).join('\n\n');
+
+  const prompt = 'You are a blunt BJJ coach who has read every one of this student\'s training journal entries below. Answer their question using ONLY what is actually in these entries — reference specific sessions or dates where it helps. If the entries genuinely do not cover their question, say so plainly rather than inventing an answer. Talk like a coach, not an AI: short, direct sentences, no filler ("it seems", "this suggests", "it appears"), no hedging.\n\nQuestion: "' + question + '"\n\nJournal entries:\n\n' + entriesText;
+
+  try {
+    const res = await fetch('/.netlify/functions/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt: prompt})
+    });
+    const resData = await res.json();
+    const text = resData.content.map(c => c.text||'').join('');
+    answerText.innerHTML = '<p>' + text.replace(/\n/g,'<br>') + '</p>';
+  } catch(e) {
+    answerText.textContent = 'Could not reach your journal right now. Try again.';
+  }
 }
 
 // ===== TECHNIQUE LIBRARY =====
@@ -618,7 +752,7 @@ async function loadTechniques() {
   }).join('');
 }
 
-// ===== COMPETITION WEIGHT TRACKER — new isolated feature, doesn't touch journal or techniques code =====
+// ===== COMPETITION WEIGHT TRACKER =====
 async function saveWeightTarget() {
   const target = parseFloat(document.getElementById('weightTarget').value);
   if (!target || target <= 0) { alert('Enter a valid target weight.'); return; }
@@ -644,7 +778,7 @@ async function saveWeightEntry() {
   if (!weight || weight <= 0) { alert('Enter a valid weight.'); return; }
   if (weight > 300) { alert('That doesn\'t look right — check the number.'); return; }
   if (!currentUser) { showAuthModal(); return; }
-  if (btn && btn.disabled) return; // already saving, ignore double-tap
+  if (btn && btn.disabled) return;
 
   if (btn) btn.disabled = true;
   document.getElementById('savingWeightMsg').style.display = 'block';
@@ -692,7 +826,6 @@ async function loadWeightEntries() {
     target = targetData ? targetData.target_kg : null;
   }
 
-  // Update the target/current/diff panel
   const panel = document.getElementById('weightTargetPanel');
   if (target || entries.length > 0) {
     panel.style.display = 'flex';
@@ -749,7 +882,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     allEntries = data || [];
   }
 
-  // Real 7-day window — not "last N entries regardless of when they happened"
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const entries = allEntries.filter(e => new Date(e.created_at) > weekAgo);
@@ -759,10 +891,6 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     return;
   }
 
-  // Cache per calendar week only — NOT per entry count. Regenerating on
-  // every single save would silently remove the cost control the original
-  // design had ("not every save"). This only regenerates when a new week
-  // starts, or the user manually taps refresh.
   const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const cacheKey = 'tapgod_weekly_' + currentUser.id + '_' + weekNumber;
   if (!forceRefresh) {
@@ -1055,24 +1183,25 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
   .journal-hero-sub { font-size:15px; color:var(--muted); line-height:1.5; }
   .journal-input-wrap { margin-bottom:32px; }
   .journal-input-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; }
-  .journal-textarea { width:100%; background:var(--card); border:1px solid var(--border); border-radius:0; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:17px; line-height:1.7; resize:none; min-height:160px; outline:none; padding:20px; box-sizing:border-box; transition:border-color 0.2s; }
-  .journal-textarea:focus { border-color:var(--border2); }
+  .journal-textarea { width:100%; background:linear-gradient(180deg, var(--card2) 0%, var(--card) 100%); border:1px solid var(--border2); border-radius:6px; color:var(--white); font-family:'Barlow Condensed',sans-serif; font-size:17px; line-height:1.7; resize:none; min-height:160px; outline:none; padding:20px; box-sizing:border-box; transition:all 0.2s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); }
+  .journal-textarea:focus { border-color:var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 8px 24px rgba(212,168,67,0.08); }
   .journal-textarea::placeholder { color:var(--muted); font-size:16px; }
   .journal-actions { display:flex; align-items:stretch; gap:8px; margin-top:12px; }
-  .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 24px; background:var(--gold); color:var(--bg); border:none; cursor:pointer; transition:all 0.15s; flex:2; }
-  .journal-submit-btn:hover { background:var(--gold2); }
-  .mic-btn { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; padding:14px 16px; background:transparent; color:var(--white); border:1px solid var(--border2); cursor:pointer; transition:all 0.15s; flex:1; display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; }
-  .mic-btn:hover { border-color:var(--gold); color:var(--gold); }
-  .mic-btn.recording { border-color:#e05555; color:#e05555; animation:micPulse 1s infinite; }
+  .journal-submit-btn { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; padding:14px 24px; background:linear-gradient(135deg, var(--gold2) 0%, var(--gold) 100%); color:var(--bg); border:none; border-radius:6px; cursor:pointer; transition:all 0.15s; flex:2; box-shadow: 0 4px 14px rgba(212,168,67,0.2); }
+  .journal-submit-btn:hover { background:linear-gradient(135deg, var(--gold2) 0%, var(--gold2) 100%); transform:translateY(-1px); box-shadow: 0 6px 20px rgba(212,168,67,0.3); }
+  .mic-btn { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:2px; padding:14px 16px; background:var(--card2); color:var(--white); border:1px solid var(--gold); border-radius:6px; cursor:pointer; transition:all 0.15s; flex:1; display:flex; align-items:center; justify-content:center; gap:6px; min-width:0; }
+  .mic-btn:hover { background:var(--gold-dim); color:var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .mic-btn.recording { border-color:#e05555; color:#e05555; background:rgba(224,85,85,0.08); animation:micPulse 1s infinite; }
   @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
   .journal-saving { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--gold); letter-spacing:2px; display:none; }
   .journal-divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
   .journal-divider-label { font-family:'Bebas Neue',sans-serif; font-size:16px; letter-spacing:3px; color:var(--muted); white-space:nowrap; }
   .journal-divider-line { flex:1; height:1px; background:var(--border); }
-  .entry-card { background:var(--card); border:1px solid var(--border); padding:0; margin-bottom:12px; animation:fadeUp 0.3s ease; overflow:hidden; }
+  .entry-card { background:linear-gradient(180deg, var(--card2) 0%, var(--card) 100%); border:1px solid var(--border); border-radius:8px; padding:0; margin-bottom:14px; animation:fadeUp 0.3s ease; overflow:hidden; transition:border-color 0.2s, transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .entry-card:hover { border-color:var(--border2); transform:translateY(-1px); }
   .entry-card-top { padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-  .entry-category { font-family:'Share Tech Mono',monospace; font-size:9px; padding:4px 10px; letter-spacing:3px; text-transform:uppercase; border:1px solid; }
+  .entry-category { font-family:'Share Tech Mono',monospace; font-size:9px; padding:4px 10px; letter-spacing:3px; text-transform:uppercase; border:1px solid; border-radius:3px; }
   
   .cat-guard-game { color:#4ea5ff; background:rgba(78,165,255,0.1); border-color:rgba(78,165,255,0.3); }
   .cat-passing { color:#2ecc71; background:rgba(46,204,113,0.1); border-color:rgba(46,204,113,0.3); }
@@ -1108,20 +1237,20 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
 <div id="landing">
   <nav class="nav">
     <div class="nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
-    <span class="nav-tag">BJJ Game Plan Builder</span>
+    <span class="nav-tag">AI Training Journal</span>
   </nav>
   <section class="hero">
     <div class="hero-eyebrow">Built by a grappler. For grapplers.</div>
     <h1 class="hero-title"><span class="tap">TAP</span><br><span class="god">GOD</span></h1>
-    <p class="hero-sub">BJJ Game Plan Builder</p>
-    <p class="hero-desc">Stop winging every roll. <strong>Build a real game plan</strong> personalised to your belt, your body, your weaknesses — in under 3 minutes.</p>
+    <p class="hero-sub">AI Training Journal</p>
+    <p class="hero-desc">Log every session. <strong>Ask your journal what you need to remember</strong> before you roll — AI keeps track so you don't have to.</p>
     <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:400px;">
-      <button class="cta-btn" onclick="startApp()" style="width:100%;">BUILD MY GAME PLAN →</button>
-      <button onclick="showSection('journal')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">SESSION JOURNAL</button>
+      <button class="cta-btn" onclick="showSection('journal')" style="width:100%;">OPEN SESSION JOURNAL →</button>
+      <button onclick="startApp()" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">BUILD GAME PLAN</button>
       <button onclick="showSection('techniques')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">TECHNIQUE LIBRARY</button>
       <button onclick="showSection('weighttracker')" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--white);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;padding:14px 28px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--white)'">WEIGHT TRACKER</button>
     </div>
-    <p class="hero-footer">Game plan free forever — Journal from £5/month</p>
+    <p class="hero-footer">Journal from £5/month — Game plan free forever</p>
     <div class="hero-stats">
       <div class="stat"><span class="stat-num">5</span><span class="stat-label">Questions</span></div>
       <div class="stat"><span class="stat-num">3</span><span class="stat-label">Minutes</span></div>
@@ -1137,31 +1266,11 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     <!-- Live features -->
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
 
-      <div onclick="startApp()" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🎯 AI GAME PLAN BUILDER</div>
-            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">6 questions. Personalised to your body and belt.</div>
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">FREE</div>
-        </div>
-      </div>
-
       <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">📓 SESSION JOURNAL</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Log every class. Never forget what you learned.</div>
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
-        </div>
-      </div>
-
-      <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🧠 AI PATTERN RECOGNITION</div>
-            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Spots trends across your sessions. Your AI coach.</div>
           </div>
           <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
         </div>
@@ -1177,7 +1286,27 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
         </div>
       </div>
 
-      <div onclick="showSection('techniques')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div onclick="showSection('journal')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🧠 AI PATTERN RECOGNITION</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">Spots trends across your sessions. Your AI coach.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">PRO</div>
+        </div>
+      </div>
+
+      <div onclick="startApp()" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--muted);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🎯 AI GAME PLAN BUILDER</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;">6 questions. Personalised to your body and belt.</div>
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold);letter-spacing:1px;background:var(--gold-dim);padding:3px 8px;border:1px solid rgba(212,168,67,0.3);">FREE</div>
+        </div>
+      </div>
+
+      <div onclick="showSection('techniques')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--muted);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">🔗 TECHNIQUE LIBRARY</div>
@@ -1187,7 +1316,7 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
         </div>
       </div>
 
-      <div onclick="showSection('weighttracker')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--gold);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div onclick="showSection('weighttracker')" style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--muted);padding:16px 20px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--white);">⚖️ COMPETITION WEIGHT TRACKER</div>
@@ -1216,11 +1345,10 @@ async function loadPatternInsights(forceRefresh, entriesParam) {
     </div>
 
     <div style="text-align:center;margin-top:32px;">
-      <button class="cta-btn" onclick="startApp()" style="width:100%;max-width:400px;">BUILD MY FREE GAME PLAN →</button>
+      <button class="cta-btn" onclick="showSection('journal')" style="width:100%;max-width:400px;">OPEN SESSION JOURNAL →</button>
     </div>
   </div>
 </div>
-
 <div id="app">
   <div class="app-header">
     <div class="app-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
@@ -1600,6 +1728,21 @@ function restart() {
       </div>
     </div>
 
+    <div class="journal-input-wrap" style="margin-bottom:24px;">
+      <div class="journal-input-label">ASK YOUR JOURNAL</div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="askInput" placeholder="e.g. What do I need to remember about my half guard?" style="flex:1;background:linear-gradient(180deg, var(--card2) 0%, var(--card) 100%);border:1px solid var(--border2);border-radius:6px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:16px;padding:14px 16px;outline:none;">
+        <button class="mic-btn" id="askMicBtn" onclick="toggleAskVoice()" style="flex:0 0 auto;padding:14px 18px;">🎤</button>
+        <button class="journal-submit-btn" onclick="askJournal()" style="flex:0 0 auto;padding:14px 24px;">ASK</button>
+      </div>
+      <div id="askAnswerWrap" style="display:none;margin-top:16px;">
+        <div class="ai-section">
+          <div class="ai-section-title">FROM YOUR JOURNAL</div>
+          <div class="ai-body" id="askAnswerText"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="insightsPanel" class="insights-panel">
       <div class="insights-header">
         <span class="insights-icon">🧠</span>
@@ -1659,7 +1802,7 @@ function restart() {
   </div>
 </div>
 
-<!-- TECHNIQUE LIBRARY — new isolated section -->
+<!-- TECHNIQUE LIBRARY -->
 <div id="techniques" style="display:none;">
   <nav class="journal-nav">
     <div class="journal-nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
@@ -1701,7 +1844,7 @@ function restart() {
   </div>
 </div>
 
-<!-- COMPETITION WEIGHT TRACKER — new isolated section -->
+<!-- COMPETITION WEIGHT TRACKER -->
 <div id="weighttracker" style="display:none;">
   <nav class="journal-nav">
     <div class="journal-nav-logo"><span class="tap">TAP</span><span class="god">GOD</span></div>
